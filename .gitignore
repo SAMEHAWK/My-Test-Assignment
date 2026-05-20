@@ -1,0 +1,81 @@
+# Unity 项目 Git 忽略规则
+# 参考: https://github.com/github/gitignore/blob/main/Unity.gitignore
+
+# Unity 自动生成的缓存与临时目录（体积大、可本地重建）
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+
+# 调试/录制产物（可能很大）
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Asset Store 工具插件（按需取消注释）
+# /[Aa]ssets/AssetStoreTools*
+
+# JetBrains Rider 自动生成的插件
+/[Aa]ssets/Plugins/Editor/JetBrains*
+
+# Visual Studio / Rider 缓存
+.vs/
+.idea/
+*.DotSettings.user
+
+# Gradle（Android 构建）
+.gradle/
+
+# IDE 自动生成的解决方案与工程文件（Unity 会重新生成）
+ExportedObj/
+.consulo/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Unity 崩溃报告
+sysinfo.txt
+
+# 构建产物
+*.apk
+*.aab
+*.unitypackage
+*.app
+
+# Crashlytics
+crashlytics-build.properties
+
+# Addressables 打包缓存
+/[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
+
+# Addressables 临时 Android 资源
+/[Aa]ssets/[Ss]treamingAssets/aa.meta
+/[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# 操作系统杂项
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# 编辑器/工具本地配置（可选）
+.vscode/
+*.swp
+*~
