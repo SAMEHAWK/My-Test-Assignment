@@ -79,3 +79,7 @@ Desktop.ini
 .vscode/
 *.swp
 *~
+
+# Claude 相关文件
+Claude.md
+/docs/
