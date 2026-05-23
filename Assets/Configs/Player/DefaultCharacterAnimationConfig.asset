@@ -1,0 +1,127 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f8e7d6c5b4a39281706f5e4d3c2b1a09, type: 3}
+  m_Name: DefaultCharacterAnimationConfig
+  m_EditorClassIdentifier: Assembly-CSharp::ActiveRagdoll.Character.CharacterAnimationConfig
+  speedParam: Speed
+  hitBlendXParam: HitBlendX
+  hitBlendZParam: HitBlendZ
+  flinchWeightParam: FlinchWeight
+  flinchLayerName: FlinchLayer
+  heavyStaggerStateName: HitHeavy
+  heavyStaggerCrossFadeDuration: 1
+  heavyPartialBlendBackDuration: 1
+  heavyPartialBlendBackCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.31450307
+      value: 0.4727085
+      inSlope: 1.3850008
+      outSlope: 1.3850008
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.31547886
+    - serializedVersion: 3
+      time: 0.7208766
+      value: 0.9357047
+      inSlope: 0.4058437
+      outSlope: 0.4058437
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.3179997
+      outWeight: 0.35888916
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  movingParam: Moving
+  equippedParam: Equipped
+  upBodyLayerName: UpBodyLayer
+  fullBodyLayerName: FullBodyLayer
+  movingSpeedThreshold: 0.1
+  equipFullBodyStateName: wp_Equip_inplace
+  equipUpBodyStateName: wp_Equip_inplace
+  unequipFullBodyStateName: wp_Unequip_inplace
+  unequipUpBodyStateName: wp_Unequip_inplace
+  equipCrossFadeDuration: 0
+  equipMovingLayerSwitchCrossFade: 0.3
+  equipLayerSwitchMoveHoldSeconds: 0.2
+  equipLayerSwitchIdleHoldSeconds: 0.2
+  equipLayerSwitchCooldown: 0.2
+  equipLayerSwitchIdleSpeedMultiplier: 0.5
+  equipPlaybackEndNormalizedTime: 0.95
+  overlayEmptyStateName: Empty
+  overlayEmptyCrossFadeDuration: 0
+  overlayFadeOutDuration: 0
+  weaponOverlayMaxPhaseSeconds: 5
+  suppressLiveMovingDuringWeaponPlayback: 1
+  deferEquippedBoolUntilOverlayFadeOut: 0
+  getUpBackStateName: GetUpBack
+  getUpFrontStateName: GetUpFront
+  getUpCrossFadeDuration: 0.12
+  getUpBackTargetDuration: 2
+  getUpFrontTargetDuration: 2
+  recoveryUseFullBodyLayer: 1
+  recoveryPoseMatchDuration: 0.5
+  recoveryPoseMatchCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.4943396
+      value: 0.5755882
+      inSlope: 1.317712
+      outSlope: 1.317712
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.13479485
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  recoveryMaxBoneAngleClamp: 85

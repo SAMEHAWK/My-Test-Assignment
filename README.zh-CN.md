@@ -6,9 +6,8 @@ Unity 开发者测试任务：为人形角色实现 **主动式布娃娃（Activ
 
 **参考游戏：** *Exanima*、*Hellish Quart*、*No Rest for the Wicked*（俯视角镜头风格）。
 
-**题面 PDF：** [`docs/Unity_测试任务.pdf`](docs/Unity_测试任务.pdf)
-
-> **状态：** 开发中 — 完成功能后在下方清单勾选。
+## 前言
+本项目将由AI协作制作，IDE为Cursor，AI模型为Cursor Auto模式提供的AI模型以及Deepseek V4 pro，游戏为俯视角3D
 
 ## 演示
 
@@ -19,9 +18,7 @@ Unity 开发者测试任务：为人形角色实现 **主动式布娃娃（Activ
 | 项目 | 说明 |
 |------|------|
 | Unity | **6000.3.13f1 (LTS)** — 必须使用此版本 |
-| 测试平台 | Windows *(自行更新)* |
-
-勿提交 `Library/`、`Temp/`、`Logs/`（见 `.gitignore`）。
+| 测试平台 | Windows |
 
 ## 快速开始
 
@@ -97,7 +94,7 @@ Unity 开发者测试任务：为人形角色实现 **主动式布娃娃（Activ
 
 - [ ] 玩家移动（WASD / 可选摇杆）
 - [ ] Idle / Run 动画
-- [ ] 俯视角相机（参考 *No Rest for the Wicked*）
+- [ ] 俯视角相机
 - [ ] 第一组假人（定时轻/重击）
 - [ ] 第二组假人（连续轻/重击），与第一组隔开
 - [ ] 滚石循环路径 + 碰撞即时击倒
@@ -121,20 +118,6 @@ docs/
   Unity_测试任务.pdf    # 官方题面（中英）
 ```
 
-## 设计说明
-
-*（实现时记录你的方案。）*
-
-- 建议模块：`BalanceSystem`、`HitReactionController`、`RagdollController`、`RecoveryController`、假人攻击驱动、滚石移动。
-- 轻击：四向受击与动画 Layer/Blend Tree。
-- 重击：按骨骼链启用 Rigidbody + 冲量。
-- 击倒：区分最后一击轻/重以决定蜷缩 vs 击飞。
-- 起身：`dot(脊柱Up, WorldUp)` 选 Get Up From Back / Front。
-
-## 已知限制
-
-- *（写明时间不够时的简化项。）*
-
 ## 第三方资源
 
 | 资源 | 路径 | 说明 |
@@ -145,4 +128,4 @@ docs/
 ## 作者
 
 <!-- 替换为你的信息 -->
-**王燿增** — [email@example.com](mailto:email@example.com)
+**王燿增** — [email@example.com](mailto:916821412@qq.com)

@@ -1,0 +1,99 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 65b522d2cad88094fa28940a6ee8a2ac, type: 3}
+  m_Name: RagdollChainCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::ActiveRagdoll.Character.RagdollChainCatalog
+  chains:
+  - chainName: head
+    boneNameKeywords:
+    - head
+    propagationMode: 2
+    includeChildren: 0
+    maxParentDepth: 1
+    maxChildDepth: 0
+    parentFalloff: 0.6
+    childFalloff: 0.75
+    minPropagationWeight: 0.2
+    impulseMultiplier: 1
+    writebackWeight: 1
+  - chainName: chest
+    boneNameKeywords:
+    - chest
+    - upperchest
+    - spine
+    propagationMode: 2
+    includeChildren: 1
+    maxParentDepth: 1
+    maxChildDepth: 2
+    parentFalloff: 0.6
+    childFalloff: 0.75
+    minPropagationWeight: 0.2
+    impulseMultiplier: 1
+    writebackWeight: 1
+  - chainName: leftarm
+    boneNameKeywords:
+    - leftarm
+    - leftupperarm
+    - leftforearm
+    - lefthand
+    propagationMode: 2
+    includeChildren: 1
+    maxParentDepth: 2
+    maxChildDepth: 2
+    parentFalloff: 0.6
+    childFalloff: 0.75
+    minPropagationWeight: 0.2
+    impulseMultiplier: 1
+    writebackWeight: 1
+  - chainName: rightarm
+    boneNameKeywords:
+    - rightarm
+    - rightupperarm
+    - rightforearm
+    - righthand
+    propagationMode: 2
+    includeChildren: 1
+    maxParentDepth: 2
+    maxChildDepth: 2
+    parentFalloff: 0.6
+    childFalloff: 0.75
+    minPropagationWeight: 0.2
+    impulseMultiplier: 1
+    writebackWeight: 1
+  - chainName: leftleg
+    boneNameKeywords:
+    - leftupleg
+    - leftleg
+    - leftfoot
+    propagationMode: 2
+    includeChildren: 1
+    maxParentDepth: 2
+    maxChildDepth: 2
+    parentFalloff: 0.6
+    childFalloff: 0.75
+    minPropagationWeight: 0.2
+    impulseMultiplier: 1
+    writebackWeight: 1
+  - chainName: rightleg
+    boneNameKeywords:
+    - rightupleg
+    - rightleg
+    - rightfoot
+    propagationMode: 2
+    includeChildren: 1
+    maxParentDepth: 2
+    maxChildDepth: 2
+    parentFalloff: 0.6
+    childFalloff: 0.75
+    minPropagationWeight: 0.2
+    impulseMultiplier: 1
+    writebackWeight: 1

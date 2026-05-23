@@ -1,0 +1,51 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bf11be2f8ef52284abd83ce796de59bd, type: 3}
+  m_Name: RagdollSystemConfig
+  m_EditorClassIdentifier: Assembly-CSharp::ActiveRagdoll.Character.RagdollSystemConfig
+  minKnockdownDuration: 0.8
+  placeholderSettleDuration: 1.5
+  settleSpeedThreshold: 0.15
+  settleStableDuration: 0.15
+  heavyPartialRadius: 0.65
+  heavyPartialMaxBodies: 6
+  heavyPartialPhysicsHoldDuration: 0.18
+  heavyPartialPrimaryImpulseMultiplier: 0.85
+  heavyPartialSecondaryImpulseMultiplier: 0.45
+  heavyPartialAngularImpulseMultiplier: 0.18
+  heavyPartialSolverIterations: 12
+  heavyPartialSolverVelocityIterations: 4
+  heavyPartialBlendBackDuration: 0.75
+  heavyPartialBlendBackCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4

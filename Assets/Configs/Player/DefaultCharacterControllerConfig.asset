@@ -1,0 +1,51 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 492640b9eacc22742b417f9d91185562, type: 3}
+  m_Name: DefaultCharacterControllerConfig
+  m_EditorClassIdentifier: Assembly-CSharp::ActiveRagdoll.Character.CharacterControllerConfig
+  moveSpeed: 4
+  equippedMoveSpeed: 6
+  moveAcceleration: 10
+  moveDeceleration: 13
+  heavyMoveSpeedMultiplier: 0.5
+  rotationSpeed: 12
+  maxBalance: 6
+  lightBalanceDamage: 0
+  heavyBalanceDamage: 0
+  balanceRegenDelay: 1.75
+  balanceRegenPerSecond: 2
+  lightFlinchDuration: 0.3
+  heavyBlendBackDuration: 0.8
+  heavyPartialRagdollRadius: 0.9
+  heavyPartialRagdollMaxBodies: 10
+  heavyPartialPhysicsHoldDuration: 0.3
+  heavyPartialPrimaryImpulseMultiplier: 1.4
+  heavyPartialSecondaryImpulseMultiplier: 0.45
+  heavyPartialAngularImpulseMultiplier: 0.4
+  heavyPartialSolverIterations: 12
+  heavyPartialSolverVelocityIterations: 4
+  lightFlinchRootKnockbackDistance: 0
+  lightFlinchSpineRecoilEnabled: 1
+  lightFlinchSpinePitchDegrees: 32
+  lightFlinchSpineRollDegrees: 32
+  lightFlinchNeckRecoilEnabled: 1
+  lightFlinchNeckPitchDegrees: 32
+  lightFlinchNeckRollDegrees: 32
+  lightFlinchHeadRecoilEnabled: 1
+  lightFlinchHeadPitchDegrees: 32
+  lightFlinchHeadRollDegrees: 32
+  lightFlinchSpineRecoilCurve:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
