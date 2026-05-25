@@ -72,6 +72,12 @@ namespace ActiveRagdoll.Character
                     maxParentDepth: 1,
                     maxChildDepth: 2),
                 CreateChain(
+                    "hips",
+                    new[] { "hips", "pelvis" },
+                    includeChildren: true,
+                    maxParentDepth: 0,
+                    maxChildDepth: 2),
+                CreateChain(
                     "leftarm",
                     new[] { "leftarm", "leftupperarm", "leftforearm", "lefthand" },
                     includeChildren: true,

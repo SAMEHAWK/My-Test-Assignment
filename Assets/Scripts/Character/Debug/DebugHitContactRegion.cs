@@ -11,7 +11,15 @@ namespace ActiveRagdoll.Character
         Chest,
         LeftArm,
         RightArm,
+        LeftElbow,
+        RightElbow,
+        LeftWrist,
+        RightWrist,
         LeftLeg,
-        RightLeg
+        RightLeg,
+        LeftKnee,
+        RightKnee,
+        LeftAnkle,
+        RightAnkle
     }
 }

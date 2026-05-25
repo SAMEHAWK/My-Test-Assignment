@@ -30,6 +30,7 @@ namespace ActiveRagdoll.Character
         readonly CharacterControllerConfig _controllerConfig;
         readonly CharacterAnimationConfig _animConfig;
         readonly WeaponEquipPlaybackController _weaponEquip;
+        readonly CharacterAttackPlaybackController _attackPlayback;
 
         readonly BoneRecoilSlot _spineRecoil = new();
         readonly BoneRecoilSlot _neckRecoil = new();
@@ -42,6 +43,7 @@ namespace ActiveRagdoll.Character
         readonly int _movingHash;
         readonly int _flinchLayerIndex = -1;
         readonly int _fullBodyLayerIndex = -1;
+        readonly int _noArmLayerIndex = -1;
         readonly int _getUpBackStateHash;
         readonly int _getUpFrontStateHash;
         readonly int _heavyStaggerStateHash;
@@ -70,6 +72,8 @@ namespace ActiveRagdoll.Character
 
         public bool IsEquipPlaybackInProgress => _weaponEquip.IsEquipPlaybackInProgress;
 
+        public bool IsAttackPlaybackInProgress => _attackPlayback.IsAttackPlaybackInProgress;
+
         public bool IsLightFlinchOverlayActive => _lightFlinchOverlayActive;
 
         public WeaponEquipPlaybackController WeaponEquip => _weaponEquip;
@@ -91,6 +95,7 @@ namespace ActiveRagdoll.Character
             _neckRecoilTransform = neckRecoilTransform;
             _headRecoilTransform = headRecoilTransform;
             _weaponEquip = new WeaponEquipPlaybackController(animator, animConfig);
+            _attackPlayback = new CharacterAttackPlaybackController(animator, animConfig);
 
             if (_animConfig != null)
             {
@@ -112,6 +117,19 @@ namespace ActiveRagdoll.Character
                             $"[CharacterAnimationPresenter] FullBody layer not found: {_animConfig.fullBodyLayerName}. " +
                             "Recovery get-up will fallback to base layer.\n" +
                             $"[CharacterAnimationPresenter] Missing layer '{_animConfig.fullBodyLayerName}'.",
+                            _animator);
+                    }
+                }
+
+                if (_animator != null && !string.IsNullOrEmpty(_animConfig.noArmLayerName))
+                {
+                    _noArmLayerIndex = _animator.GetLayerIndex(_animConfig.noArmLayerName);
+                    if (_noArmLayerIndex < 0)
+                    {
+                        Debug.LogWarning(
+                            $"[CharacterAnimationPresenter] NoArm layer not found: {_animConfig.noArmLayerName}. " +
+                            "Equipped heavy stagger will fallback to FullBody/Base layer.\n" +
+                            $"[CharacterAnimationPresenter] Missing layer '{_animConfig.noArmLayerName}'.",
                             _animator);
                     }
                 }
@@ -140,6 +158,24 @@ namespace ActiveRagdoll.Character
 
             _animator.applyRootMotion = false;
             _animator.updateMode = AnimatorUpdateMode.Normal;
+        }
+
+        void SetHeavyRootMotionActive(bool active)
+        {
+            if (_animator == null)
+                return;
+
+            var enable = active && _controllerConfig != null && _controllerConfig.heavyStaggerUseRootMotion;
+            _animator.applyRootMotion = enable;
+        }
+
+        void SetAttackRootMotionActive(bool active)
+        {
+            if (_animator == null)
+                return;
+
+            var enable = active && _controllerConfig != null && _controllerConfig.attackUseRootMotion;
+            _animator.applyRootMotion = enable;
         }
 
         bool CanWriteAnimator() =>
@@ -172,6 +208,12 @@ namespace ActiveRagdoll.Character
         public void SetEquippedAnimator(bool equipped) => _weaponEquip.SetEquippedAnimator(equipped);
 
         public void AbortWeaponEquipPlayback() => _weaponEquip.Abort();
+
+        public bool TryBeginAttack(CharacterAttackType attackType) => _attackPlayback.TryBeginAttack(attackType);
+
+        public void CompleteAttackPlayback() => _attackPlayback.CompleteAttackPlayback();
+
+        public void AbortAttackPlayback() => _attackPlayback.Abort();
 
         public void SetPendingRecoveryType(RecoveryGetUpType getUpType) =>
             _pendingRecoveryGetUpType = getUpType;
@@ -405,13 +447,25 @@ namespace ActiveRagdoll.Character
                 case CharacterState.Locomotion:
                 case CharacterState.WeaponEquipPlayback:
                     _animator.enabled = true;
+                    SetHeavyRootMotionActive(false);
+                    SetAttackRootMotionActive(false);
                     EndHeavyStaggerPresentation();
                     if (!_lightFlinchOverlayActive)
                         ApplyFlinchPresentation(0f, 0f, 0f);
                     break;
 
+                case CharacterState.AttackPlayback:
+                    _animator.enabled = true;
+                    SetHeavyRootMotionActive(false);
+                    SetAttackRootMotionActive(true);
+                    EndLightFlinchOverlay();
+                    EndHeavyStaggerPresentation();
+                    break;
+
                 case CharacterState.LightFlinch:
                     _animator.enabled = true;
+                    SetHeavyRootMotionActive(false);
+                    SetAttackRootMotionActive(false);
                     EndHeavyStaggerPresentation();
                     var blend = _animator != null
                         ? HitDirectionUtility.ToAnimatorBlendLocal(in hitContext, _animator.transform)
@@ -421,12 +475,16 @@ namespace ActiveRagdoll.Character
 
                 case CharacterState.HeavyStagger:
                     _animator.enabled = true;
+                    SetAttackRootMotionActive(false);
+                    SetHeavyRootMotionActive(true);
                     EndLightFlinchOverlay();
                     BeginHeavyStaggerPresentation(in hitContext);
                     break;
 
                 case CharacterState.Knockdown:
                 case CharacterState.ForcedKnockdown:
+                    SetHeavyRootMotionActive(false);
+                    SetAttackRootMotionActive(false);
                     _animator.enabled = false;
                     EndLightFlinchOverlay();
                     EndHeavyStaggerPresentation();
@@ -434,6 +492,8 @@ namespace ActiveRagdoll.Character
 
                 case CharacterState.Recovering:
                     _animator.enabled = true;
+                    SetHeavyRootMotionActive(false);
+                    SetAttackRootMotionActive(false);
                     EndHeavyStaggerPresentation();
                     if (!_lightFlinchOverlayActive)
                         ApplyFlinchPresentation(0f, 0f, 0f);
@@ -486,6 +546,7 @@ namespace ActiveRagdoll.Character
             _heavyStaggerPresentationActive = false;
             _heavyStaggerPresentationElapsed = 0f;
             _heavyStaggerUsingDedicatedState = false;
+            ClearHeavyStaggerLayerWeights();
 
             if (CanWriteAnimator() && !_lightFlinchOverlayActive)
                 ApplyFlinchPresentation(0f, 0f, 0f);
@@ -498,12 +559,13 @@ namespace ActiveRagdoll.Character
 
             // 重击专用动画替代 flinch 淡出，先清空武器 overlay 并重置 flinch 权重
             // Dedicated heavy animation replaces flinch fade; clear weapon overlay and flinch weight first
+            var weaponEquipped = _weaponEquip.IsWeaponEquipped;
             _weaponEquip.Abort();
 
             var blend = HitDirectionUtility.ToAnimatorBlendLocal(in hitContext, _animator.transform);
             ApplyFlinchPresentation(0f, blend.x, blend.y);
 
-            var layerIndex = ResolveHeavyStaggerPlaybackLayerIndex(_heavyStaggerStateHash);
+            var layerIndex = ResolveHeavyStaggerPlaybackLayerIndex(_heavyStaggerStateHash, weaponEquipped);
             if (layerIndex < 0)
                 return false;
 
@@ -512,17 +574,65 @@ namespace ActiveRagdoll.Character
             return true;
         }
 
-        int ResolveHeavyStaggerPlaybackLayerIndex(int stateHash)
+        int ResolveHeavyStaggerPlaybackLayerIndex(int stateHash, bool weaponEquipped)
         {
+            if (_animator == null)
+                return -1;
+
+            var hasNoArm = _noArmLayerIndex >= 0 && _animator.HasState(_noArmLayerIndex, stateHash);
             var hasFull = _fullBodyLayerIndex >= 0 && _animator != null && _animator.HasState(_fullBodyLayerIndex, stateHash);
-            if (hasFull)
+            var hasBase = _animator.HasState(0, stateHash);
+
+            if (weaponEquipped && hasNoArm)
             {
-                _animator.SetLayerWeight(_fullBodyLayerIndex, 1f);
+                ActivateHeavyStaggerLayer(_noArmLayerIndex);
+                return _noArmLayerIndex;
+            }
+
+            if (!weaponEquipped && hasFull)
+            {
+                ActivateHeavyStaggerLayer(_fullBodyLayerIndex);
                 return _fullBodyLayerIndex;
             }
 
-            var hasBase = _animator != null && _animator.HasState(0, stateHash);
+            if (hasFull)
+            {
+                ActivateHeavyStaggerLayer(_fullBodyLayerIndex);
+                return _fullBodyLayerIndex;
+            }
+
+            if (hasNoArm)
+            {
+                ActivateHeavyStaggerLayer(_noArmLayerIndex);
+                return _noArmLayerIndex;
+            }
+
+            if (hasBase)
+                ClearHeavyStaggerLayerWeights();
+
             return hasBase ? 0 : -1;
+        }
+
+        void ActivateHeavyStaggerLayer(int activeLayerIndex)
+        {
+            if (_animator == null)
+                return;
+
+            if (_fullBodyLayerIndex >= 0)
+                _animator.SetLayerWeight(_fullBodyLayerIndex, activeLayerIndex == _fullBodyLayerIndex ? 1f : 0f);
+            if (_noArmLayerIndex >= 0)
+                _animator.SetLayerWeight(_noArmLayerIndex, activeLayerIndex == _noArmLayerIndex ? 1f : 0f);
+        }
+
+        void ClearHeavyStaggerLayerWeights()
+        {
+            if (_animator == null)
+                return;
+
+            if (_fullBodyLayerIndex >= 0)
+                _animator.SetLayerWeight(_fullBodyLayerIndex, 0f);
+            if (_noArmLayerIndex >= 0)
+                _animator.SetLayerWeight(_noArmLayerIndex, 0f);
         }
 
         void BeginRecoveryPlayback(RecoveryGetUpType getUpType)
@@ -790,6 +900,14 @@ namespace ActiveRagdoll.Character
 
         public void OnExitState(CharacterState state)
         {
+            if (state == CharacterState.HeavyStagger)
+                SetHeavyRootMotionActive(false);
+            if (state == CharacterState.AttackPlayback)
+            {
+                SetAttackRootMotionActive(false);
+                AbortAttackPlayback();
+            }
+
             if (state == CharacterState.Recovering)
             {
                 CancelRecoveryPoseMatch();
@@ -809,6 +927,8 @@ namespace ActiveRagdoll.Character
         {
             if (state == CharacterState.WeaponEquipPlayback)
                 _weaponEquip.Tick(deltaTime);
+            else if (state == CharacterState.AttackPlayback)
+                _attackPlayback.Tick(deltaTime);
             else if (state == CharacterState.Recovering)
                 TickRecoveryPlaybackSpeedControl();
             else if (state == CharacterState.HeavyStagger)

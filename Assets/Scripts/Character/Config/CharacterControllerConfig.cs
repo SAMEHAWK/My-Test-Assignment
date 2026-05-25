@@ -29,6 +29,16 @@ namespace ActiveRagdoll.Character
         [Tooltip("朝向移动方向插值速度 — Rotation smoothing toward move direction")]
         public float rotationSpeed = 12f;
 
+        [Header("Grounding / 贴地")]
+        [Tooltip("CharacterController 垂直重力加速度 — Vertical gravity for CharacterController grounding")]
+        public float gravity = -25f;
+
+        [Tooltip("接地时保持的小下压力速度 — Small downward velocity while grounded")]
+        public float groundedStickVelocity = -2f;
+
+        [Tooltip("最大下落速度（正数，内部取负）— Max fall speed as a positive value")]
+        public float maxFallSpeed = 30f;
+
         [Header("Balance / 平衡")]
         [Tooltip("平衡值上限（归零触发击倒）— Max balance before knockdown threshold")]
         public int maxBalance = 6;
@@ -36,8 +46,8 @@ namespace ActiveRagdoll.Character
         public int lightBalanceDamage = 1;
         [Tooltip("重击扣除平衡值 — Balance damage from heavy hit")]
         public int heavyBalanceDamage = 2;
-        [Tooltip("距离上次受击多少秒后开始恢复 — Delay before balance regeneration starts")]
-        public float balanceRegenDelay = 1.75f;
+        [Tooltip("距离上次受击多少秒后开始恢复 — Delay after last hit before balance regeneration starts")]
+        public float balanceRegenDelay = 2f;
         [Tooltip("每秒恢复多少平衡值（按帧累加）— Balance regenerated per second")]
         public float balanceRegenPerSecond = 2f;
 
@@ -47,30 +57,25 @@ namespace ActiveRagdoll.Character
         [Tooltip("重击回到可控状态前的混合时长 — Heavy stagger blend-back duration")]
         public float heavyBlendBackDuration = 0.75f;
 
-        [Header("Heavy Partial Ragdoll / 重击局部布娃娃")]
-        [Tooltip("重击局部物理影响半径（米），基于接触点挑选骨骼 — Selection radius around heavy hit contact point")]
-        public float heavyPartialRagdollRadius = 0.65f;
+        [Header("Heavy Root Motion / 重击根运动")]
+        [Tooltip("重击期间是否提取动画根运动并驱动 Player 根节点 — Consume heavy root motion and drive player root")]
+        public bool heavyStaggerUseRootMotion = true;
 
-        [Tooltip("重击最多激活多少个局部物理骨骼 — Max ragdoll bodies enabled for heavy stagger")]
-        public int heavyPartialRagdollMaxBodies = 6;
+        [Tooltip("重击根运动位移倍率（仅 XZ）— Root-motion planar distance multiplier during heavy stagger")]
+        public float heavyRootMotionPlanarScale = 1f;
 
-        [Tooltip("重击局部骨骼保持动态物理的时长（秒）；之后切回 Kinematic 并融合回动画 — Dynamic physics hold time before kinematic blend-back")]
-        public float heavyPartialPhysicsHoldDuration = 0.18f;
+        [Tooltip("每帧最大根运动位移（米，0 表示不限制）— Max planar root-motion delta per frame in meters (0 = unlimited)")]
+        public float heavyRootMotionMaxDeltaPerFrame = 0.45f;
 
-        [Tooltip("重击主受击骨线性冲量倍率 — Linear impulse multiplier for the primary heavy-hit body")]
-        public float heavyPartialPrimaryImpulseMultiplier = 0.85f;
+        [Header("Attack Root Motion / 攻击根运动")]
+        [Tooltip("攻击期间是否提取动画根运动并驱动 Player 根节点 — Consume attack root motion and drive player root")]
+        public bool attackUseRootMotion = true;
 
-        [Tooltip("重击次级骨骼线性冲量倍率 — Linear impulse multiplier for secondary heavy-hit bodies")]
-        public float heavyPartialSecondaryImpulseMultiplier = 0.45f;
+        [Tooltip("攻击根运动位移倍率（仅 XZ）— Root-motion planar distance multiplier during attacks")]
+        public float attackRootMotionPlanarScale = 1f;
 
-        [Tooltip("重击角冲量倍率；调低可减少关节拉扯 — Angular impulse multiplier; lower values reduce joint stretch")]
-        public float heavyPartialAngularImpulseMultiplier = 0.18f;
-
-        [Tooltip("重击局部物理临时 Solver Iterations — Temporary solver iterations for heavy partial ragdoll")]
-        public int heavyPartialSolverIterations = 12;
-
-        [Tooltip("重击局部物理临时 Solver Velocity Iterations — Temporary solver velocity iterations for heavy partial ragdoll")]
-        public int heavyPartialSolverVelocityIterations = 4;
+        [Tooltip("攻击每帧最大根运动位移（米，0 表示不限制）— Max attack planar root-motion delta per frame in meters (0 = unlimited)")]
+        public float attackRootMotionMaxDeltaPerFrame = 0.45f;
 
         [Header("Light Hit / 轻击（动画 + 脊柱弯曲）")]
         [Tooltip("根节点 CC 后撤 m；0 = 脚不离地 — Optional root knockback; 0 = no slide")]

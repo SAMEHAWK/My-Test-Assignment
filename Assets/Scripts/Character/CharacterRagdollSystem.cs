@@ -25,10 +25,8 @@ namespace ActiveRagdoll.Character
     public sealed class CharacterRagdollSystem : MonoBehaviour, ICharacterModule
     {
         [Header("Dual Skeleton / 双骨架")]
-        [Tooltip("启用双骨架实现；未满足条件时自动回退旧单骨架 — Enable dual-skeleton path; falls back to legacy when unavailable")]
+        [Tooltip("启用双骨架实现；未满足条件时后端不可用 — Enable dual-skeleton path; backend becomes unavailable when setup fails")]
         [SerializeField] bool enableDualSkeleton = true;
-        [Tooltip("允许回退旧单骨架实现（过渡期）— Allow legacy single-skeleton fallback during transition")]
-        [SerializeField] bool allowLegacyFallback = true;
         [Tooltip("可见动画骨架根（通常是 VisualModel 或其 Armature）— Visual animated skeleton root")]
         [SerializeField] Transform visualRoot;
         [Tooltip("隐藏物理骨架根（通常是 RagdollRig）— Hidden physics skeleton root")]
@@ -45,6 +43,8 @@ namespace ActiveRagdoll.Character
         [SerializeField] float heavyPartialBlendBackDurationOverride = -1f;
         [Tooltip("击倒沉降速度阈值覆盖（<0 使用配置）— Override settle speed threshold (<0 uses config)")]
         [SerializeField] float settleSpeedThresholdOverride = -1f;
+        [Tooltip("局部重击表面接触点探测距离（米）— Probe distance for resolving partial heavy-hit surface contact")]
+        [SerializeField] float heavyPartialContactProbeDistance = 1.5f;
 
         struct DualBoneBinding
         {
@@ -62,7 +62,6 @@ namespace ActiveRagdoll.Character
             public int SolverVelocityIterations;
         }
 
-        RagdollModule _legacyModule;
         Transform _fallbackCameraAnchor;
         readonly List<DualBoneBinding> _dualBindings = new();
         readonly Dictionary<Rigidbody, int> _dualBindingIndexByBody = new();
@@ -102,20 +101,29 @@ namespace ActiveRagdoll.Character
         Vector3 _debugLastImpulseDirection = Vector3.forward;
         Transform _debugPrimaryAffectedBone;
         readonly List<Transform> _debugAffectedBones = new();
-        bool _legacyFallbackWarningLogged;
-
-        public bool IsInitialized => _useDualSkeleton || _legacyModule != null;
-        public bool IsLegacyFallbackAllowed => allowLegacyFallback;
+        static readonly string[] HeadAliases = { "head" };
+        static readonly string[] ChestAliases = { "upperchest", "chest", "spine2", "spine1", "spine" };
+        static readonly string[] HipsAliases = { "hips", "pelvis", "hip" };
+        static readonly string[] LeftArmAliases = { "leftupperarm", "leftarm", "lupperarm", "larm", "leftforearm", "leftlowerarm", "lforearm", "llowerarm" };
+        static readonly string[] RightArmAliases = { "rightupperarm", "rightarm", "rupperarm", "rarm", "rightforearm", "rightlowerarm", "rforearm", "rlowerarm" };
+        static readonly string[] LeftElbowAliases = { "leftforearm", "leftlowerarm", "leftelbow", "lforearm", "llowerarm", "lelbow" };
+        static readonly string[] RightElbowAliases = { "rightforearm", "rightlowerarm", "rightelbow", "rforearm", "rlowerarm", "relbow" };
+        static readonly string[] LeftWristAliases = { "lefthand", "leftwrist", "lhand", "lwrist" };
+        static readonly string[] RightWristAliases = { "righthand", "rightwrist", "rhand", "rwrist" };
+        static readonly string[] LeftLegAliases = { "leftupleg", "leftthigh", "leftleg", "leftcalf", "lupleg", "lthigh", "lleg", "lcalf" };
+        static readonly string[] RightLegAliases = { "rightupleg", "rightthigh", "rightleg", "rightcalf", "rupleg", "rthigh", "rleg", "rcalf" };
+        static readonly string[] LeftKneeAliases = { "leftleg", "leftcalf", "leftknee", "lleg", "lcalf", "lknee" };
+        static readonly string[] RightKneeAliases = { "rightleg", "rightcalf", "rightknee", "rleg", "rcalf", "rknee" };
+        static readonly string[] LeftAnkleAliases = { "leftfoot", "leftankle", "lfoot", "lankle" };
+        static readonly string[] RightAnkleAliases = { "rightfoot", "rightankle", "rfoot", "rankle" };
+        public bool IsInitialized => _useDualSkeleton;
         public bool IsUsingDualSkeleton => _useDualSkeleton;
-        public bool IsUsingLegacyFallback => !_useDualSkeleton && _legacyModule != null;
         public string BackendStatus
         {
             get
             {
                 if (_useDualSkeleton)
                     return "Dual";
-                if (_legacyModule != null)
-                    return "LegacyFallback";
                 return "Unavailable";
             }
         }
@@ -128,60 +136,123 @@ namespace ActiveRagdoll.Character
         public Vector3 DebugImpulseDirection => _debugLastImpulseDirection;
         public Transform DebugPrimaryAffectedBone => _debugPrimaryAffectedBone;
         public IReadOnlyList<Transform> DebugAffectedBones => _debugAffectedBones;
-        public bool IsSettled => _useDualSkeleton ? IsDualSettled() : _legacyModule == null || _legacyModule.IsSettled;
-        public bool IsHeavyPartialBlendComplete => _useDualSkeleton ? !_heavyPartialActive : _legacyModule == null || _legacyModule.IsHeavyPartialBlendComplete;
+        public bool IsSettled => _useDualSkeleton ? IsDualSettled() : true;
+        public bool IsHeavyPartialBlendComplete => _useDualSkeleton ? !_heavyPartialActive : true;
         public Transform CameraFollowAnchor => ResolveCameraFollowAnchor();
 
         /// <summary>
-        /// 运行时初始化：优先双骨架，失败时按开关回退旧单骨架
-        /// Runtime init: prefer dual-skeleton; fallback to legacy single-skeleton when enabled
+        /// 按调试命中部位解析物理骨架接触点，优先用于重击调试稳定选骨
+        /// Resolve physics contact point by debug region for stable heavy-hit selection
+        /// </summary>
+        public bool TryGetDebugContactPoint(DebugHitContactRegion region, out Vector3 point, out string matchedPhysicsBoneName)
+        {
+            point = transform.position + Vector3.up;
+            matchedPhysicsBoneName = string.Empty;
+            if (!_useDualSkeleton || _dualBindings.Count == 0)
+                return false;
+
+            var aliases = GetContactRegionAliases(region);
+            if (aliases == null || aliases.Length == 0)
+                return false;
+
+            var bestIndex = -1;
+            var bestAliasRank = int.MaxValue;
+            var bestDistanceSqr = float.MaxValue;
+            var rootPosition = transform.position;
+            for (var i = 0; i < _dualBindings.Count; i++)
+            {
+                var bone = _dualBindings[i].PhysicsBone;
+                if (bone == null)
+                    continue;
+
+                var normalizedBoneName = NormalizeBoneToken(bone.name);
+                if (string.IsNullOrEmpty(normalizedBoneName))
+                    continue;
+
+                var aliasRank = GetAliasRank(normalizedBoneName, aliases);
+                if (aliasRank < 0)
+                    continue;
+
+                var distanceSqr = (bone.position - rootPosition).sqrMagnitude;
+                var isBetterCandidate = aliasRank < bestAliasRank
+                    || (aliasRank == bestAliasRank && distanceSqr < bestDistanceSqr);
+                if (!isBetterCandidate)
+                    continue;
+
+                bestAliasRank = aliasRank;
+                bestDistanceSqr = distanceSqr;
+                bestIndex = i;
+            }
+
+            if (bestIndex < 0 || bestIndex >= _dualBindings.Count)
+                return false;
+
+            var matchedBone = _dualBindings[bestIndex].PhysicsBone;
+            if (matchedBone == null)
+                return false;
+
+            point = matchedBone.position;
+            matchedPhysicsBoneName = matchedBone.name;
+            return true;
+        }
+
+        /// <summary>
+        /// 运行时初始化：仅支持双骨架，初始化失败时后端保持 Unavailable
+        /// Runtime init: dual-skeleton only; backend stays Unavailable when setup fails
         /// </summary>
         public void InitializeRuntime(
             Transform ownerTransform,
-            Rigidbody[] ragdollBodies,
-            CharacterControllerConfig controllerConfig,
-            CharacterAnimationConfig animationConfig,
-            float minKnockdownDuration,
-            float placeholderSettleDuration,
-            float settleSpeedThreshold,
             Transform fallbackCameraAnchor)
         {
-            _fallbackCameraAnchor = fallbackCameraAnchor != null ? fallbackCameraAnchor : ownerTransform;
+            const float defaultMinKnockdownDuration = 0.8f;
+            const float defaultPlaceholderSettleDuration = 1.5f;
+            const float defaultSettleSpeedThreshold = 0.15f;
 
-            var resolvedMinKnockdownDuration = systemConfig != null ? systemConfig.minKnockdownDuration : minKnockdownDuration;
-            var resolvedPlaceholderSettleDuration = systemConfig != null ? systemConfig.placeholderSettleDuration : placeholderSettleDuration;
-            var resolvedSettleSpeedThreshold = systemConfig != null ? systemConfig.settleSpeedThreshold : settleSpeedThreshold;
+            _fallbackCameraAnchor = fallbackCameraAnchor != null ? fallbackCameraAnchor : ownerTransform;
+            if (systemConfig == null)
+            {
+#if UNITY_EDITOR
+                Debug.LogWarning(
+                    "[CharacterRagdollSystem] 未分配 RagdollSystemConfig，正在使用内置默认值。建议在 Prefab 上显式绑定配置资产。\n" +
+                    "[CharacterRagdollSystem] RagdollSystemConfig is not assigned; using built-in defaults. Assign config asset on prefab.",
+                    this);
+#endif
+            }
+
+            var resolvedMinKnockdownDuration = systemConfig != null ? systemConfig.minKnockdownDuration : defaultMinKnockdownDuration;
+            var resolvedPlaceholderSettleDuration = systemConfig != null ? systemConfig.placeholderSettleDuration : defaultPlaceholderSettleDuration;
+            var resolvedSettleSpeedThreshold = systemConfig != null ? systemConfig.settleSpeedThreshold : defaultSettleSpeedThreshold;
             var resolvedSettleStableDuration = systemConfig != null ? systemConfig.settleStableDuration : 0.15f;
             var resolvedHeavyPartialRadius = systemConfig != null
                 ? systemConfig.heavyPartialRadius
-                : controllerConfig != null ? controllerConfig.heavyPartialRagdollRadius : 0.65f;
+                : 0.65f;
             var resolvedHeavyPartialMaxBodies = systemConfig != null
                 ? systemConfig.heavyPartialMaxBodies
-                : controllerConfig != null ? controllerConfig.heavyPartialRagdollMaxBodies : 6;
+                : 6;
             var resolvedHeavyPartialPhysicsHoldDuration = systemConfig != null
                 ? systemConfig.heavyPartialPhysicsHoldDuration
-                : controllerConfig != null ? controllerConfig.heavyPartialPhysicsHoldDuration : 0.18f;
+                : 0.18f;
             var resolvedHeavyPartialPrimaryImpulseMultiplier = systemConfig != null
                 ? systemConfig.heavyPartialPrimaryImpulseMultiplier
-                : controllerConfig != null ? controllerConfig.heavyPartialPrimaryImpulseMultiplier : 0.85f;
+                : 0.85f;
             var resolvedHeavyPartialSecondaryImpulseMultiplier = systemConfig != null
                 ? systemConfig.heavyPartialSecondaryImpulseMultiplier
-                : controllerConfig != null ? controllerConfig.heavyPartialSecondaryImpulseMultiplier : 0.45f;
+                : 0.45f;
             var resolvedHeavyPartialAngularImpulseMultiplier = systemConfig != null
                 ? systemConfig.heavyPartialAngularImpulseMultiplier
-                : controllerConfig != null ? controllerConfig.heavyPartialAngularImpulseMultiplier : 0.18f;
+                : 0.18f;
             var resolvedHeavyPartialSolverIterations = systemConfig != null
                 ? systemConfig.heavyPartialSolverIterations
-                : controllerConfig != null ? controllerConfig.heavyPartialSolverIterations : 12;
+                : 12;
             var resolvedHeavyPartialSolverVelocityIterations = systemConfig != null
                 ? systemConfig.heavyPartialSolverVelocityIterations
-                : controllerConfig != null ? controllerConfig.heavyPartialSolverVelocityIterations : 4;
+                : 4;
             var resolvedHeavyPartialBlendBackDuration = systemConfig != null
                 ? systemConfig.heavyPartialBlendBackDuration
-                : animationConfig != null ? animationConfig.heavyPartialBlendBackDuration : 0.75f;
+                : 0.75f;
             var resolvedHeavyPartialBlendBackCurve = systemConfig != null
                 ? systemConfig.heavyPartialBlendBackCurve
-                : animationConfig != null ? animationConfig.heavyPartialBlendBackCurve : null;
+                : null;
 
             _minKnockdownDuration = Mathf.Max(0.6f, resolvedMinKnockdownDuration);
             _placeholderSettleDuration = Mathf.Max(0.1f, resolvedPlaceholderSettleDuration);
@@ -206,59 +277,20 @@ namespace ActiveRagdoll.Character
 
             _useDualSkeleton = TryInitializeDualSkeleton(ownerTransform);
             if (_useDualSkeleton)
-            {
-                _legacyModule = null;
                 return;
-            }
 
-            if (!allowLegacyFallback)
-            {
-                _legacyModule = null;
 #if UNITY_EDITOR
-                Debug.LogWarning(
-                    "[CharacterRagdollSystem] 双骨架初始化失败且已禁用 legacy 回退，Ragdoll 后端不可用。\n" +
-                    "[CharacterRagdollSystem] Dual init failed and legacy fallback is disabled; ragdoll backend unavailable.",
-                    this);
+            Debug.LogWarning(
+                "[CharacterRagdollSystem] 双骨架初始化失败，Ragdoll 后端不可用。请检查 Visual Root / Physics Root / Animator / 映射骨骼。\n" +
+                "[CharacterRagdollSystem] Dual-skeleton init failed; ragdoll backend unavailable. Check Visual Root / Physics Root / Animator / bone mapping.",
+                this);
 #endif
-                return;
-            }
-
-            _legacyModule = new RagdollModule(
-                ownerTransform,
-                ragdollBodies,
-                _minKnockdownDuration,
-                _placeholderSettleDuration,
-                _settleSpeedThreshold,
-                _heavyPartialBlendBackDuration,
-                _heavyPartialBlendBackCurve,
-                _heavyPartialRadius,
-                _heavyPartialMaxBodies,
-                _heavyPartialPhysicsHoldDuration,
-                _heavyPartialPrimaryImpulseMultiplier,
-                _heavyPartialSecondaryImpulseMultiplier,
-                _heavyPartialAngularImpulseMultiplier,
-                _heavyPartialSolverIterations,
-                _heavyPartialSolverVelocityIterations);
-
-            if (!_legacyFallbackWarningLogged)
-            {
-#if UNITY_EDITOR
-                Debug.LogWarning(
-                    "[CharacterRagdollSystem] 正在使用 legacy 单骨架回退路径（仅过渡期）。建议修复双骨架映射并关闭 Allow Legacy Fallback。\n" +
-                    "[CharacterRagdollSystem] Using legacy single-skeleton fallback (transition only). Fix dual setup and disable Allow Legacy Fallback.",
-                    this);
-#endif
-                _legacyFallbackWarningLogged = true;
-            }
         }
 
         public void OnEnterState(CharacterState state, in HitContext hitContext)
         {
             if (!_useDualSkeleton)
-            {
-                _legacyModule?.OnEnterState(state, in hitContext);
                 return;
-            }
 
             switch (state)
             {
@@ -282,10 +314,7 @@ namespace ActiveRagdoll.Character
         public void OnExitState(CharacterState state)
         {
             if (!_useDualSkeleton)
-            {
-                _legacyModule?.OnExitState(state);
                 return;
-            }
 
             if (state is CharacterState.HeavyStagger or CharacterState.Knockdown or CharacterState.ForcedKnockdown)
                 ReturnToAnimated();
@@ -294,10 +323,7 @@ namespace ActiveRagdoll.Character
         public void OnTickState(CharacterState state, float deltaTime)
         {
             if (!_useDualSkeleton)
-            {
-                _legacyModule?.OnTickState(state, deltaTime);
                 return;
-            }
 
             if (state is CharacterState.Knockdown or CharacterState.ForcedKnockdown)
             {
@@ -318,19 +344,16 @@ namespace ActiveRagdoll.Character
 
         public void OnFixedTickState(CharacterState state, float fixedDeltaTime)
         {
-            if (!_useDualSkeleton)
-                _legacyModule?.OnFixedTickState(state, fixedDeltaTime);
+            _ = state;
+            _ = fixedDeltaTime;
         }
 
         public void ApplyHeavyPartialPoseLateUpdate()
         {
             if (!_useDualSkeleton)
-            {
-                _legacyModule?.ApplyHeavyPartialPoseLateUpdate();
                 return;
-            }
 
-            if (!_heavyPartialActive || _heavyPartialPhysicsActive || _partialBindingIndices.Count == 0)
+            if (!_heavyPartialActive || _partialBindingIndices.Count == 0)
                 return;
 
             for (var i = 0; i < _partialBindingIndices.Count; i++)
@@ -344,8 +367,11 @@ namespace ActiveRagdoll.Character
                     continue;
 
                 var animLocalRotation = binding.VisualBone.localRotation;
+                var physicsLocalRotation = _heavyPartialBlendActive
+                    ? binding.CapturedPhysicsLocalRotation
+                    : binding.PhysicsBone != null ? binding.PhysicsBone.localRotation : animLocalRotation;
                 var writebackWeight = ResolvePartialWritebackWeight(bindingIndex);
-                var weightedPhysicsRotation = Quaternion.Slerp(animLocalRotation, binding.CapturedPhysicsLocalRotation, writebackWeight);
+                var weightedPhysicsRotation = Quaternion.Slerp(animLocalRotation, physicsLocalRotation, writebackWeight);
                 binding.VisualBone.localRotation = _heavyPartialBlendActive
                     ? Quaternion.Slerp(weightedPhysicsRotation, animLocalRotation, _heavyPartialBlendWeight)
                     : weightedPhysicsRotation;
@@ -366,37 +392,17 @@ namespace ActiveRagdoll.Character
         }
 
         public CharacterPoseSnapshot CaptureRecoveryPose() =>
-            _useDualSkeleton ? CaptureDualRecoveryPose() : _legacyModule != null ? _legacyModule.CaptureRecoveryPoseSnapshot() : default;
+            _useDualSkeleton ? CaptureDualRecoveryPose() : default;
 
         public RagdollAnchor CaptureRecoveryAnchor() =>
-            _useDualSkeleton ? CaptureDualRecoveryAnchor() : _legacyModule != null ? _legacyModule.CaptureRecoveryAnchor() : default;
+            _useDualSkeleton ? CaptureDualRecoveryAnchor() : default;
 
         /// <summary>
-        /// 评估起身类型：优先根据双骨架胸口朝向判定仰/俯；旧路径回退为 Back
-        /// Evaluate get-up type from dual-skeleton torso facing; legacy path falls back to Back
+        /// 评估起身类型：优先根据双骨架胸口朝向判定仰/俯；不可用时回退为 Back
+        /// Evaluate get-up type from dual-skeleton torso facing; falls back to Back when unavailable
         /// </summary>
         public RecoveryGetUpType EvaluateGetUpType() =>
             _useDualSkeleton ? EvaluateDualGetUpType() : RecoveryGetUpType.Back;
-
-        /// <summary>
-        /// 预检查是否具备双骨架初始化条件（不创建运行时映射）
-        /// Precheck whether dual-skeleton setup is available without building runtime bindings
-        /// </summary>
-        public bool CanAttemptDualSkeletonSetup(Transform ownerTransform)
-        {
-            if (!enableDualSkeleton)
-                return false;
-
-            var resolvedAnimator = ResolveVisualAnimator();
-            var resolvedVisualRoot = ResolveVisualRoot(resolvedAnimator);
-            var resolvedPhysicsRoot = ResolvePhysicsRoot(ownerTransform);
-            if (resolvedVisualRoot == null || resolvedPhysicsRoot == null)
-                return false;
-
-            // 仅要求 Physics Root 下至少有刚体，进一步的映射有效性在初始化阶段判断
-            // Require at least one rigidbody under Physics Root; full mapping validity is checked in initialization
-            return resolvedPhysicsRoot.GetComponentsInChildren<Rigidbody>(true).Length > 0;
-        }
 
         bool TryInitializeDualSkeleton(Transform ownerTransform)
         {
@@ -484,6 +490,7 @@ namespace ActiveRagdoll.Character
         {
             DisableHeavyPartialImmediate();
 
+            SyncKinematicPhysicsToVisual();
             SelectHeavyPartialBindings(hitContext.ContactPoint, _heavyPartialRadius, _heavyPartialMaxBodies, _partialBindingIndices);
             if (_partialBindingIndices.Count == 0)
             {
@@ -491,10 +498,19 @@ namespace ActiveRagdoll.Character
                 return;
             }
 
-            var worldDir = HitDirectionUtility.ResolveIncomingWorld(in hitContext, transform).normalized;
+            BeginHeavyPartialFullPhysicsSimulation();
+
+            var incoming = HitDirectionUtility.ResolveIncomingWorld(in hitContext, transform).normalized;
             var impulse = ResolveImpulse(in hitContext);
-            var force = worldDir * impulse;
+            // incoming 表示攻击源指向角色的施力方向，局部 Ragdoll 与调试箭头都使用同一方向
+            // incoming is the force direction from attack source to character; partial ragdoll and debug arrow share it
+            var forceDirection = incoming;
+            var force = forceDirection * impulse;
             var primaryBindingIndex = _partialBindingIndices[0];
+            var resolvedContactPoint = ResolveHeavyPartialContactPoint(
+                primaryBindingIndex,
+                hitContext.ContactPoint,
+                forceDirection);
             var maxRadius = Mathf.Max(0.01f, _heavyPartialRadius);
 
             for (var i = 0; i < _partialBindingIndices.Count; i++)
@@ -507,8 +523,6 @@ namespace ActiveRagdoll.Character
                 if (binding.Body == null)
                     continue;
 
-                PreparePartialBodyRuntime(bindingIndex, binding.Body);
-                SetDynamic(binding.Body);
                 binding.Body.WakeUp();
                 var propagationWeight = ResolvePartialImpulseWeight(bindingIndex);
 
@@ -516,10 +530,10 @@ namespace ActiveRagdoll.Character
                 {
                     binding.Body.AddForceAtPosition(
                         force * _heavyPartialPrimaryImpulseMultiplier * propagationWeight,
-                        hitContext.ContactPoint,
+                        resolvedContactPoint,
                         ForceMode.Impulse);
 
-                    var armVector = binding.Body.worldCenterOfMass - hitContext.ContactPoint;
+                    var armVector = binding.Body.worldCenterOfMass - resolvedContactPoint;
                     var torqueAxis = Vector3.Cross(armVector, force);
                     if (torqueAxis.sqrMagnitude > 0.0001f)
                         binding.Body.AddTorque(
@@ -528,7 +542,7 @@ namespace ActiveRagdoll.Character
                 }
                 else
                 {
-                    var distance = Vector3.Distance(binding.Body.worldCenterOfMass, hitContext.ContactPoint);
+                    var distance = Vector3.Distance(binding.Body.worldCenterOfMass, resolvedContactPoint);
                     var t = Mathf.Clamp01(distance / maxRadius);
                     var attenuatedScale = Mathf.Lerp(1f, 0.35f, t) * _heavyPartialSecondaryImpulseMultiplier;
                     binding.Body.AddForce(force * attenuatedScale * propagationWeight, ForceMode.Impulse);
@@ -543,8 +557,8 @@ namespace ActiveRagdoll.Character
             _heavyPartialBlendWeight = 0f;
             _mode = CharacterRagdollMode.PartialRagdoll;
             RecordDebugHit(
-                hitContext.ContactPoint,
-                worldDir,
+                resolvedContactPoint,
+                forceDirection,
                 primaryBindingIndex,
                 _partialBindingIndices);
         }
@@ -556,9 +570,12 @@ namespace ActiveRagdoll.Character
             _knockdownTimer = 0f;
             _dualSettleStableTimer = 0f;
 
-            var worldDir = HitDirectionUtility.ResolveIncomingWorld(in hitContext, transform).normalized;
+            var incoming = HitDirectionUtility.ResolveIncomingWorld(in hitContext, transform).normalized;
             var impulse = ResolveImpulse(in hitContext);
-            var force = worldDir * impulse;
+            // incoming 表示攻击源指向角色的施力方向，全身 Ragdoll 与调试箭头都使用同一方向
+            // incoming is the force direction from attack source to character; full ragdoll and debug arrow share it
+            var forceDirection = incoming;
+            var force = forceDirection * impulse;
             var sorted = BuildBindingIndicesSortedByDistance(hitContext.ContactPoint);
             var primaryBindingIndex = sorted.Count > 0 ? sorted[0] : -1;
             var fullBodyIndices = new List<int>(_dualBindings.Count);
@@ -577,7 +594,7 @@ namespace ActiveRagdoll.Character
 
             RecordDebugHit(
                 hitContext.ContactPoint,
-                worldDir,
+                forceDirection,
                 primaryBindingIndex,
                 fullBodyIndices);
         }
@@ -630,8 +647,11 @@ namespace ActiveRagdoll.Character
                 var binding = _dualBindings[i];
                 if (binding.VisualBone == null || binding.PhysicsBone == null)
                     continue;
-                binding.VisualBone.localPosition = binding.PhysicsBone.localPosition;
-                binding.VisualBone.localRotation = binding.PhysicsBone.localRotation;
+                // 全身倒地回写使用世界空间，避免 Visual/Physics 根节点局部基准不一致导致方向错位
+                // Use world-space writeback to avoid heading drift from mismatched local root bases
+                binding.VisualBone.SetPositionAndRotation(
+                    binding.PhysicsBone.position,
+                    binding.PhysicsBone.rotation);
             }
         }
 
@@ -647,14 +667,13 @@ namespace ActiveRagdoll.Character
             if (sorted.Count == 0)
                 return;
 
-            var primaryIndex = sorted[0];
-            AddBindingIndexUnique(outputIndices, primaryIndex);
-
-            var primaryBinding = _dualBindings[primaryIndex];
-            if (primaryBinding.PhysicsBone == null)
+            if (TrySelectByChainCatalog(sorted, contactPoint, radius, maxBodies, outputIndices))
                 return;
 
-            if (TrySelectByChainCatalog(primaryBinding, contactPoint, radius, maxBodies, outputIndices))
+            var primaryIndex = sorted[0];
+            AddBindingIndexUnique(outputIndices, primaryIndex);
+            var primaryBinding = _dualBindings[primaryIndex];
+            if (primaryBinding.PhysicsBone == null)
                 return;
 
             var radiusSqr = Mathf.Max(0.01f, radius * radius);
@@ -692,27 +711,32 @@ namespace ActiveRagdoll.Character
         }
 
         bool TrySelectByChainCatalog(
-            DualBoneBinding primaryBinding,
+            List<int> sortedIndicesByDistance,
             Vector3 contactPoint,
             float radius,
             int maxBodies,
             List<int> outputIndices)
         {
-            if (chainCatalog == null || primaryBinding.PhysicsBone == null)
+            if (chainCatalog == null || sortedIndicesByDistance == null || sortedIndicesByDistance.Count == 0)
                 return false;
 
-            if (!chainCatalog.TryResolveByBoneName(primaryBinding.PhysicsBone.name, out var chain) || chain == null)
+            if (!TryResolveNearestCatalogPrimary(sortedIndicesByDistance, contactPoint, out var primaryIndex, out var chain))
                 return false;
 
-            var primaryIndex = outputIndices.Count > 0 ? outputIndices[0] : -1;
-            if (primaryIndex < 0)
+            if (primaryIndex < 0 || primaryIndex >= _dualBindings.Count)
                 return false;
+
+            var primaryBinding = _dualBindings[primaryIndex];
+            if (primaryBinding.PhysicsBone == null || chain == null)
+                return false;
+
+            outputIndices.Clear();
+            AddBindingIndexUnique(outputIndices, primaryIndex);
+
+            var candidates = new List<(int index, float finalWeight, bool isParent, float distance)>(_dualBindings.Count);
 
             for (var i = 0; i < _dualBindings.Count; i++)
             {
-                if (outputIndices.Count >= maxBodies)
-                    break;
-
                 var binding = _dualBindings[i];
                 if (binding.Body == null || binding.PhysicsBone == null)
                     continue;
@@ -720,18 +744,44 @@ namespace ActiveRagdoll.Character
                 if (!TryEvaluateChainWeight(primaryBinding.PhysicsBone, binding.PhysicsBone, chain, out var hierarchyWeight))
                     continue;
 
+                var distance = Vector3.Distance(binding.Body.worldCenterOfMass, contactPoint);
                 var distanceWeight = EvaluateDistanceWeight(contactPoint, radius, binding.Body.worldCenterOfMass);
-                var finalWeight = Mathf.Clamp01(hierarchyWeight * distanceWeight);
+                var parentDepth = GetAncestorDepth(primaryBinding.PhysicsBone, binding.PhysicsBone);
+                var isParent = parentDepth > 0;
+
+                // 父链传播优先遵循链配置深度/衰减，不再叠加距离衰减，避免“配置允许父链但实际总被过滤”
+                // Parent propagation follows chain depth/falloff directly, avoiding over-filter by distance
+                var finalWeight = Mathf.Clamp01(isParent ? hierarchyWeight : hierarchyWeight * distanceWeight);
                 if (finalWeight < Mathf.Clamp01(chain.minPropagationWeight))
                     continue;
 
-                AddBindingIndexUnique(outputIndices, i);
-                _partialImpulseWeightByIndex[i] = finalWeight * Mathf.Max(0f, chain.impulseMultiplier);
-                _partialWritebackWeightByIndex[i] = Mathf.Clamp01(finalWeight * Mathf.Clamp01(chain.writebackWeight));
+                candidates.Add((i, finalWeight, isParent, distance));
             }
 
-            if (outputIndices.Count == 0)
+            if (candidates.Count == 0)
                 return false;
+
+            candidates.Sort((a, b) =>
+            {
+                // 同权重下优先父链，其次按距离近
+                // Prefer parent candidates on tie, then nearer distance
+                var weightCompare = b.finalWeight.CompareTo(a.finalWeight);
+                if (weightCompare != 0)
+                    return weightCompare;
+
+                if (a.isParent != b.isParent)
+                    return a.isParent ? -1 : 1;
+
+                return a.distance.CompareTo(b.distance);
+            });
+
+            for (var i = 0; i < candidates.Count && outputIndices.Count < maxBodies; i++)
+            {
+                var candidate = candidates[i];
+                AddBindingIndexUnique(outputIndices, candidate.index);
+                _partialImpulseWeightByIndex[candidate.index] = candidate.finalWeight * Mathf.Max(0f, chain.impulseMultiplier);
+                _partialWritebackWeightByIndex[candidate.index] = Mathf.Clamp01(candidate.finalWeight * Mathf.Clamp01(chain.writebackWeight));
+            }
 
             // 保证主骨始终保持最高优先级，避免传播覆盖主受击表现
             // Keep primary bone dominant so propagated weights do not suppress main reaction
@@ -744,6 +794,80 @@ namespace ActiveRagdoll.Character
 
             ActiveChainName = string.IsNullOrWhiteSpace(chain.chainName) ? "ConfiguredChain" : chain.chainName;
             return true;
+        }
+
+        bool TryResolveNearestCatalogPrimary(
+            List<int> sortedIndicesByDistance,
+            Vector3 contactPoint,
+            out int primaryIndex,
+            out RagdollChainDefinition chain)
+        {
+            primaryIndex = -1;
+            chain = null;
+            if (sortedIndicesByDistance == null || sortedIndicesByDistance.Count == 0 || chainCatalog == null)
+                return false;
+
+            const int maxCandidates = 16;
+            const float hipsPrimaryPenalty = 0.22f;
+            var bestScore = float.MaxValue;
+
+            // 从近到远挑选候选，但不再“首命中即返回”。
+            // 使用评分选择主骨，避免 hips 链在腿部命中时过度抢占。
+            // Score nearest candidates instead of first-hit return to reduce hips hijacking on leg hits.
+            for (var i = 0; i < sortedIndicesByDistance.Count && i < maxCandidates; i++)
+            {
+                var index = sortedIndicesByDistance[i];
+                if (index < 0 || index >= _dualBindings.Count)
+                    continue;
+
+                var binding = _dualBindings[index];
+                if (binding.PhysicsBone == null || binding.Body == null)
+                    continue;
+
+                if (!chainCatalog.TryResolveByBoneName(binding.PhysicsBone.name, out var resolved) || resolved == null)
+                    continue;
+
+                var score = Vector3.Distance(binding.PhysicsBone.position, contactPoint);
+                if (IsHipsChain(resolved))
+                    score += hipsPrimaryPenalty;
+
+                if (score >= bestScore)
+                    continue;
+
+                bestScore = score;
+                primaryIndex = index;
+                chain = resolved;
+            }
+
+            return primaryIndex >= 0 && chain != null;
+        }
+
+        static bool IsHipsChain(RagdollChainDefinition chain)
+        {
+            if (chain == null)
+                return false;
+
+            var chainName = chain.chainName;
+            if (!string.IsNullOrWhiteSpace(chainName) &&
+                (chainName.IndexOf("hip", StringComparison.OrdinalIgnoreCase) >= 0
+                 || chainName.IndexOf("pelvis", StringComparison.OrdinalIgnoreCase) >= 0))
+                return true;
+
+            var keywords = chain.boneNameKeywords;
+            if (keywords == null)
+                return false;
+
+            for (var i = 0; i < keywords.Length; i++)
+            {
+                var keyword = keywords[i];
+                if (string.IsNullOrWhiteSpace(keyword))
+                    continue;
+                if (keyword.IndexOf("hip", StringComparison.OrdinalIgnoreCase) >= 0
+                    || keyword.IndexOf("pelvis", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+            }
+
+            return false;
         }
 
         bool TryEvaluateChainWeight(
@@ -762,7 +886,7 @@ namespace ActiveRagdoll.Character
                 return true;
             }
 
-            var parentDepth = GetAncestorDepth(primaryBone, candidateBone);
+            var parentDepth = GetMappedAncestorDepth(primaryBone, candidateBone);
             var childDepth = GetAncestorDepth(candidateBone, primaryBone);
 
             switch (chain.propagationMode)
@@ -788,6 +912,44 @@ namespace ActiveRagdoll.Character
                     if (!chain.includeChildren || childDepth <= 0 || childDepth > Mathf.Max(0, chain.maxChildDepth))
                         return false;
                     hierarchyWeight = Mathf.Pow(Mathf.Clamp01(chain.childFalloff), childDepth);
+                    return true;
+            }
+
+            return false;
+        }
+
+        int GetMappedAncestorDepth(Transform node, Transform ancestor)
+        {
+            if (node == null || ancestor == null)
+                return -1;
+
+            // 父级传导按已映射刚体计数，跳过肩/胸椎等无 Rigidbody 的中间骨，避免胸部被错误判定为过远。
+            // Count mapped rigidbody ancestors only, skipping non-physical shoulder/spine links so chest propagation is not over-depth.
+            var mappedDepth = 0;
+            var cursor = node.parent;
+            while (cursor != null)
+            {
+                if (HasMappedPhysicsBone(cursor))
+                    mappedDepth++;
+
+                if (cursor == ancestor)
+                    return mappedDepth > 0 ? mappedDepth : 1;
+
+                cursor = cursor.parent;
+            }
+
+            return -1;
+        }
+
+        bool HasMappedPhysicsBone(Transform physicsBone)
+        {
+            if (physicsBone == null)
+                return false;
+
+            for (var i = 0; i < _dualBindings.Count; i++)
+            {
+                var binding = _dualBindings[i];
+                if (binding.PhysicsBone == physicsBone && binding.Body != null)
                     return true;
             }
 
@@ -820,6 +982,64 @@ namespace ActiveRagdoll.Character
             return Mathf.Lerp(1f, 0.35f, normalized);
         }
 
+        static string[] GetContactRegionAliases(DebugHitContactRegion region)
+        {
+            return region switch
+            {
+                DebugHitContactRegion.Head => HeadAliases,
+                DebugHitContactRegion.Chest => ChestAliases,
+                DebugHitContactRegion.Hips => HipsAliases,
+                DebugHitContactRegion.LeftArm => LeftArmAliases,
+                DebugHitContactRegion.RightArm => RightArmAliases,
+                DebugHitContactRegion.LeftElbow => LeftElbowAliases,
+                DebugHitContactRegion.RightElbow => RightElbowAliases,
+                DebugHitContactRegion.LeftWrist => LeftWristAliases,
+                DebugHitContactRegion.RightWrist => RightWristAliases,
+                DebugHitContactRegion.LeftLeg => LeftLegAliases,
+                DebugHitContactRegion.RightLeg => RightLegAliases,
+                DebugHitContactRegion.LeftKnee => LeftKneeAliases,
+                DebugHitContactRegion.RightKnee => RightKneeAliases,
+                DebugHitContactRegion.LeftAnkle => LeftAnkleAliases,
+                DebugHitContactRegion.RightAnkle => RightAnkleAliases,
+                _ => null
+            };
+        }
+
+        static int GetAliasRank(string normalizedBoneName, IReadOnlyList<string> aliases)
+        {
+            if (string.IsNullOrEmpty(normalizedBoneName) || aliases == null)
+                return -1;
+
+            for (var i = 0; i < aliases.Count; i++)
+            {
+                var alias = aliases[i];
+                if (string.IsNullOrWhiteSpace(alias))
+                    continue;
+                if (normalizedBoneName.Contains(alias, StringComparison.OrdinalIgnoreCase))
+                    return i;
+            }
+
+            return -1;
+        }
+
+        static string NormalizeBoneToken(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return string.Empty;
+
+            var chars = new char[raw.Length];
+            var count = 0;
+            for (var i = 0; i < raw.Length; i++)
+            {
+                var c = raw[i];
+                if (!char.IsLetterOrDigit(c))
+                    continue;
+                chars[count++] = char.ToLowerInvariant(c);
+            }
+
+            return count <= 0 ? string.Empty : new string(chars, 0, count);
+        }
+
         List<int> BuildBindingIndicesSortedByDistance(Vector3 contactPoint)
         {
             var temp = new List<(int index, float sqrDistance)>(_dualBindings.Count);
@@ -844,6 +1064,108 @@ namespace ActiveRagdoll.Character
             if (bindingIndex < 0 || output.Contains(bindingIndex))
                 return;
             output.Add(bindingIndex);
+        }
+
+        Vector3 ResolveHeavyPartialContactPoint(
+            int primaryBindingIndex,
+            Vector3 fallbackContactPoint,
+            Vector3 forceDirection)
+        {
+            if (primaryBindingIndex < 0 || primaryBindingIndex >= _dualBindings.Count)
+                return fallbackContactPoint;
+
+            var body = _dualBindings[primaryBindingIndex].Body;
+            if (body == null)
+                return fallbackContactPoint;
+
+            var direction = forceDirection;
+            if (direction.sqrMagnitude < 0.0001f)
+                return fallbackContactPoint;
+            direction.Normalize();
+
+            var probeDistance = Mathf.Max(0.05f, heavyPartialContactProbeDistance);
+            var sourceSideOrigin = body.worldCenterOfMass - direction * probeDistance;
+            var maxDistance = probeDistance * 2f;
+
+            // 优先用射线命中实际表面；失败时退到离攻击源侧最近的 Collider 点
+            // Prefer a ray hit on the real surface; fall back to closest collider point from the source side
+            if (TryRaycastAttachedColliders(body, sourceSideOrigin, direction, maxDistance, out var raycastPoint))
+                return raycastPoint;
+            if (TryFindClosestAttachedColliderPoint(body, sourceSideOrigin, out var closestPoint))
+                return closestPoint;
+
+            return fallbackContactPoint;
+        }
+
+        static bool TryRaycastAttachedColliders(
+            Rigidbody body,
+            Vector3 origin,
+            Vector3 direction,
+            float maxDistance,
+            out Vector3 hitPoint)
+        {
+            hitPoint = default;
+            var colliders = body.GetComponentsInChildren<Collider>();
+            if (colliders == null || colliders.Length == 0)
+                return false;
+
+            var ray = new Ray(origin, direction);
+            var bestDistance = float.MaxValue;
+            var hasHit = false;
+            for (var i = 0; i < colliders.Length; i++)
+            {
+                var collider = colliders[i];
+                if (!IsAttachedColliderForBody(collider, body))
+                    continue;
+                if (!collider.Raycast(ray, out var hit, maxDistance))
+                    continue;
+                if (hit.distance >= bestDistance)
+                    continue;
+
+                bestDistance = hit.distance;
+                hitPoint = hit.point;
+                hasHit = true;
+            }
+
+            return hasHit;
+        }
+
+        static bool TryFindClosestAttachedColliderPoint(
+            Rigidbody body,
+            Vector3 origin,
+            out Vector3 closestPoint)
+        {
+            closestPoint = default;
+            var colliders = body.GetComponentsInChildren<Collider>();
+            if (colliders == null || colliders.Length == 0)
+                return false;
+
+            var bestDistanceSqr = float.MaxValue;
+            var hasPoint = false;
+            for (var i = 0; i < colliders.Length; i++)
+            {
+                var collider = colliders[i];
+                if (!IsAttachedColliderForBody(collider, body))
+                    continue;
+
+                var point = collider.ClosestPoint(origin);
+                var distanceSqr = (point - origin).sqrMagnitude;
+                if (distanceSqr >= bestDistanceSqr)
+                    continue;
+
+                bestDistanceSqr = distanceSqr;
+                closestPoint = point;
+                hasPoint = true;
+            }
+
+            return hasPoint;
+        }
+
+        static bool IsAttachedColliderForBody(Collider collider, Rigidbody body)
+        {
+            return collider != null
+                && collider.enabled
+                && collider.attachedRigidbody == body;
         }
 
         float ResolvePartialImpulseWeight(int bindingIndex)
@@ -929,6 +1251,33 @@ namespace ActiveRagdoll.Character
             }
         }
 
+        void BeginHeavyPartialFullPhysicsSimulation()
+        {
+            for (var i = 0; i < _dualBindings.Count; i++)
+            {
+                var body = _dualBindings[i].Body;
+                if (body == null)
+                    continue;
+
+                PreparePartialBodyRuntime(i, body);
+                SetDynamic(body);
+                body.WakeUp();
+            }
+        }
+
+        void RestoreHeavyPartialFullPhysicsSimulation()
+        {
+            for (var i = 0; i < _dualBindings.Count; i++)
+            {
+                var body = _dualBindings[i].Body;
+                if (body == null)
+                    continue;
+
+                RestorePartialBodyRuntime(i, body);
+                SetKinematic(body);
+            }
+        }
+
         void TickHeavyPartialPhysicsHold(float deltaTime)
         {
             _heavyPartialPhysicsElapsed += Mathf.Max(0f, deltaTime);
@@ -952,11 +1301,9 @@ namespace ActiveRagdoll.Character
 
                 binding.CapturedPhysicsLocalRotation = binding.PhysicsBone.localRotation;
                 _dualBindings[bindingIndex] = binding;
-
-                RestorePartialBodyRuntime(bindingIndex, binding.Body);
-                SetKinematic(binding.Body);
             }
 
+            RestoreHeavyPartialFullPhysicsSimulation();
             _heavyPartialPhysicsActive = false;
             _heavyPartialBlendActive = true;
             _heavyPartialBlendElapsed = 0f;
@@ -983,20 +1330,7 @@ namespace ActiveRagdoll.Character
 
         void CompleteHeavyPartialBlendBack()
         {
-            for (var i = 0; i < _partialBindingIndices.Count; i++)
-            {
-                var bindingIndex = _partialBindingIndices[i];
-                if (bindingIndex < 0 || bindingIndex >= _dualBindings.Count)
-                    continue;
-
-                var body = _dualBindings[bindingIndex].Body;
-                if (body == null)
-                    continue;
-
-                RestorePartialBodyRuntime(bindingIndex, body);
-                SetKinematic(body);
-            }
-
+            RestoreHeavyPartialFullPhysicsSimulation();
             _partialBindingIndices.Clear();
             _partialImpulseWeightByIndex.Clear();
             _partialWritebackWeightByIndex.Clear();
@@ -1011,20 +1345,7 @@ namespace ActiveRagdoll.Character
 
         void DisableHeavyPartialImmediate()
         {
-            for (var i = 0; i < _partialBindingIndices.Count; i++)
-            {
-                var bindingIndex = _partialBindingIndices[i];
-                if (bindingIndex < 0 || bindingIndex >= _dualBindings.Count)
-                    continue;
-
-                var body = _dualBindings[bindingIndex].Body;
-                if (body == null)
-                    continue;
-
-                RestorePartialBodyRuntime(bindingIndex, body);
-                SetKinematic(body);
-            }
-
+            RestoreHeavyPartialFullPhysicsSimulation();
             _partialBindingIndices.Clear();
             _partialImpulseWeightByIndex.Clear();
             _partialWritebackWeightByIndex.Clear();
@@ -1098,9 +1419,13 @@ namespace ActiveRagdoll.Character
                 var binding = _dualBindings[i];
                 if (binding.VisualBone == null || binding.PhysicsBone == null)
                     continue;
+                if (!ShouldIncludeBoneInRecoveryPose(binding.VisualBone))
+                    continue;
 
                 bones[count] = binding.VisualBone;
-                rotations[count] = binding.PhysicsBone.localRotation;
+                // 恢复快照需转换到 Visual 骨骼父节点局部空间，避免双骨架根基准差导致起身前转圈
+                // Convert physics world rotation into visual-parent local space to avoid recovery spin
+                rotations[count] = ToVisualLocalRotation(binding.VisualBone, binding.PhysicsBone.rotation);
                 count++;
             }
 
@@ -1116,31 +1441,95 @@ namespace ActiveRagdoll.Character
             return new CharacterPoseSnapshot(bones, rotations);
         }
 
+        static Quaternion ToVisualLocalRotation(Transform visualBone, Quaternion physicsWorldRotation)
+        {
+            if (visualBone == null)
+                return physicsWorldRotation;
+
+            var visualParent = visualBone.parent;
+            if (visualParent == null)
+                return physicsWorldRotation;
+
+            return Quaternion.Inverse(visualParent.rotation) * physicsWorldRotation;
+        }
+
+        static bool ShouldIncludeBoneInRecoveryPose(Transform visualBone)
+        {
+            if (visualBone == null)
+                return false;
+
+            var boneName = visualBone.name;
+            if (string.IsNullOrEmpty(boneName))
+                return true;
+
+            // 起身 PoseMatch 排除 hips/pelvis，避免把整体朝向扭到动画首帧造成“原地转圈”
+            // Exclude hips/pelvis from recovery pose match to prevent whole-body spin-in-place
+            return boneName.IndexOf("hip", StringComparison.OrdinalIgnoreCase) < 0
+                   && boneName.IndexOf("pelvis", StringComparison.OrdinalIgnoreCase) < 0;
+        }
+
         RagdollAnchor CaptureDualRecoveryAnchor()
         {
             var hips = FindBindingByNameContains("hip");
             if (hips.PhysicsBone == null)
                 return new RagdollAnchor(Vector3.zero, transform.forward, false);
 
+            var head = FindBindingByNameContains("head");
             var chest = FindBindingByNameContains("chest");
             if (chest.PhysicsBone == null)
                 chest = FindBindingByNameContains("spine");
 
             var hipsPos = hips.PhysicsBone.position;
-            var planarForward = transform.forward;
-            if (chest.PhysicsBone != null)
-            {
-                var toChest = chest.PhysicsBone.position - hipsPos;
-                toChest.y = 0f;
-                if (toChest.sqrMagnitude > 0.0001f)
-                    planarForward = toChest.normalized;
-            }
-
-            planarForward.y = 0f;
-            if (planarForward.sqrMagnitude < 0.0001f)
-                planarForward = transform.forward;
+            var planarForward = ResolveRecoveryFacingForward(
+                head.PhysicsBone,
+                chest.PhysicsBone,
+                hips.PhysicsBone,
+                transform.forward);
 
             return new RagdollAnchor(hipsPos, planarForward.normalized, true);
+        }
+
+        Vector3 ResolveRecoveryFacingForward(
+            Transform headBone,
+            Transform chestBone,
+            Transform hipsBone,
+            Vector3 fallbackForward)
+        {
+            // 起身朝向轴优先使用 hips->head，保证倒地纵轴与起身朝向一致
+            // Prefer hips->head axis so get-up heading follows fallen body longitudinal axis
+            if (headBone != null && hipsBone != null)
+            {
+                var hipsToHead = headBone.position - hipsBone.position;
+                if (TryProjectToGroundPlane(hipsToHead, out var headAxisForward))
+                    return headAxisForward;
+            }
+
+            if (TryProjectToGroundPlane(chestBone != null ? chestBone.forward : Vector3.zero, out var planarForward))
+                return planarForward;
+
+            // 当 torso.forward 接近竖直时，用 torso.up 的平面投影作为朝向代理，减少朝向随机跳变
+            // When torso.forward is near vertical, use torso.up planar projection as facing proxy
+            if (TryProjectToGroundPlane(chestBone != null ? chestBone.up : Vector3.zero, out planarForward))
+                return planarForward;
+
+            if (TryProjectToGroundPlane(hipsBone != null ? hipsBone.forward : Vector3.zero, out planarForward))
+                return planarForward;
+
+            if (TryProjectToGroundPlane(fallbackForward, out planarForward))
+                return planarForward;
+
+            return Vector3.forward;
+        }
+
+        static bool TryProjectToGroundPlane(Vector3 direction, out Vector3 planarDirection)
+        {
+            planarDirection = direction;
+            planarDirection.y = 0f;
+            if (planarDirection.sqrMagnitude < 0.0001f)
+                return false;
+
+            planarDirection.Normalize();
+            return true;
         }
 
         DualBoneBinding FindBindingByNameContains(string keyword)

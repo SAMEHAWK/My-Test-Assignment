@@ -112,7 +112,9 @@ namespace ActiveRagdoll.Character
 
             // Grounded
             Allow(CharacterState.Locomotion, CharacterState.WeaponEquipPlayback);
+            Allow(CharacterState.Locomotion, CharacterState.AttackPlayback);
             Allow(CharacterState.WeaponEquipPlayback, CharacterState.Locomotion);
+            Allow(CharacterState.AttackPlayback, CharacterState.Locomotion);
 
             // Hits from grounded
             Allow(CharacterState.Locomotion, CharacterState.LightFlinch);
@@ -124,6 +126,11 @@ namespace ActiveRagdoll.Character
             Allow(CharacterState.WeaponEquipPlayback, CharacterState.HeavyStagger);
             Allow(CharacterState.WeaponEquipPlayback, CharacterState.Knockdown);
             Allow(CharacterState.WeaponEquipPlayback, CharacterState.ForcedKnockdown);
+
+            Allow(CharacterState.AttackPlayback, CharacterState.LightFlinch);
+            Allow(CharacterState.AttackPlayback, CharacterState.HeavyStagger);
+            Allow(CharacterState.AttackPlayback, CharacterState.Knockdown);
+            Allow(CharacterState.AttackPlayback, CharacterState.ForcedKnockdown);
 
             // Hit reaction return / escalate
             Allow(CharacterState.LightFlinch, CharacterState.Locomotion);

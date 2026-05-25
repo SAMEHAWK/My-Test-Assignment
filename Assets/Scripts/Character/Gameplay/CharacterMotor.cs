@@ -17,6 +17,7 @@ namespace ActiveRagdoll.Character
         Vector3 _worldVelocity;
         Vector3 _lastMoveDirection = Vector3.forward;
         float _currentPlanarSpeed;
+        float _verticalVelocity;
 
         public Vector3 WorldVelocity => _worldVelocity;
 
@@ -51,14 +52,18 @@ namespace ActiveRagdoll.Character
             if (!_controller.enabled)
             {
                 _currentPlanarSpeed = 0f;
+                _verticalVelocity = 0f;
                 _worldVelocity = Vector3.zero;
                 return;
             }
+
+            var verticalDelta = TickVerticalMotion(deltaTime);
 
             if (!allowsInput)
             {
                 _currentPlanarSpeed = 0f;
                 _worldVelocity = Vector3.zero;
+                MoveController(verticalDelta);
                 return;
             }
 
@@ -97,11 +102,12 @@ namespace ActiveRagdoll.Character
             {
                 _currentPlanarSpeed = 0f;
                 _worldVelocity = Vector3.zero;
+                MoveController(verticalDelta);
                 return;
             }
 
             _worldVelocity = _lastMoveDirection * _currentPlanarSpeed;
-            _controller.Move(_worldVelocity * deltaTime);
+            MoveController(_worldVelocity * deltaTime + verticalDelta);
         }
 
         public void OnEnterState(CharacterState state, in HitContext hitContext)
@@ -109,16 +115,23 @@ namespace ActiveRagdoll.Character
             if (_controller == null)
                 return;
 
-            if (state is CharacterState.Knockdown or CharacterState.ForcedKnockdown
+            if (state is CharacterState.HeavyStagger
+                or CharacterState.AttackPlayback
+                or CharacterState.Knockdown or CharacterState.ForcedKnockdown
                 or CharacterState.Recovering)
             {
                 _currentPlanarSpeed = 0f;
+                _verticalVelocity = 0f;
                 _worldVelocity = Vector3.zero;
             }
 
             _controller.enabled = state is CharacterState.Locomotion
                 or CharacterState.WeaponEquipPlayback
-                or CharacterState.LightFlinch;
+                or CharacterState.LightFlinch
+                // 重击/攻击播片期间需保持 CC 开启，供 Root Motion 回写根节点位移
+                // Keep CC enabled during authored playback so root-motion can drive root displacement
+                or CharacterState.HeavyStagger
+                or CharacterState.AttackPlayback;
         }
 
         public void OnExitState(CharacterState state) { }
@@ -147,6 +160,36 @@ namespace ActiveRagdoll.Character
 
             var recoil = -incoming.normalized * distance;
             _controller.Move(recoil);
+        }
+
+        Vector3 TickVerticalMotion(float deltaTime)
+        {
+            if (_controller == null || _config == null)
+                return Vector3.zero;
+
+            if (_controller.isGrounded && _verticalVelocity < 0f)
+            {
+                // 接地时保留轻微下压力，抑制 CC 被碰撞解穿透逐步抬高
+                // Keep a small downward stick velocity to reduce upward depenetration drift
+                _verticalVelocity = Mathf.Min(0f, _config.groundedStickVelocity);
+            }
+            else
+            {
+                _verticalVelocity += _config.gravity * deltaTime;
+                var maxFall = Mathf.Max(0f, _config.maxFallSpeed);
+                if (maxFall > 0f)
+                    _verticalVelocity = Mathf.Max(_verticalVelocity, -maxFall);
+            }
+
+            return Vector3.up * (_verticalVelocity * deltaTime);
+        }
+
+        void MoveController(Vector3 delta)
+        {
+            if (delta.sqrMagnitude <= 0.0000001f)
+                return;
+
+            _controller.Move(delta);
         }
     }
 }

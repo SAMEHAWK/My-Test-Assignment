@@ -16,10 +16,16 @@ namespace ActiveRagdoll.Character
         [SerializeField] GameObject backWeaponMesh;
 
         CharacterControllerRoot _root;
+        Animator _animator;
+        Vector3 _initialLocalPosition;
+        bool _hasInitialLocalPosition;
 
         void Awake()
         {
             _root = GetComponentInParent<CharacterControllerRoot>();
+            _animator = GetComponent<Animator>();
+            _initialLocalPosition = transform.localPosition;
+            _hasInitialLocalPosition = true;
             if (_root == null)
             {
                 Debug.LogError(
@@ -27,6 +33,24 @@ namespace ActiveRagdoll.Character
                     "[AnimationEventReceiver] CharacterControllerRoot not found in parents.",
                     this);
             }
+        }
+
+        void OnAnimatorMove()
+        {
+            if (_root == null || _animator == null)
+                return;
+
+            _root.ConsumeGameplayRootMotion(_animator.deltaPosition);
+        }
+
+        void LateUpdate()
+        {
+            if (_root == null || !_root.AllowsGameplayRootMotion || !_hasInitialLocalPosition)
+                return;
+
+            // 避免 Animator 子节点在启用根运动后逐帧累计本地偏移，导致模型中心漂移
+            // Prevent per-frame local-position accumulation on animator child when root motion is enabled
+            transform.localPosition = _initialLocalPosition;
         }
 
         // === Clip 中 Function 名须与下列 public 方法一致 ===
@@ -77,6 +101,51 @@ namespace ActiveRagdoll.Character
         public void OnGetUpFinished()
         {
             _root?.NotifyGetUpFinished();
+        }
+
+        /// <summary>
+        /// 重击动画结束帧：通知 Root 可退出 HeavyStagger 并恢复输入
+        /// Heavy-stagger end frame: notify Root to leave HeavyStagger and restore input
+        /// </summary>
+        public void OnHeavyStaggerFinished()
+        {
+            _root?.NotifyHeavyStaggerFinished();
+        }
+
+        /// <summary>
+        /// 主动攻击动画结束帧：释放攻击冻结
+        /// Player attack clip end — release attack lock
+        /// </summary>
+        public void OnAttackFinished()
+        {
+            _root?.NotifyAttackFinished();
+        }
+
+        /// <summary>
+        /// 轻攻击有效命中窗口开始
+        /// Light attack active hit window start
+        /// </summary>
+        public void OnLightAttackHitStart()
+        {
+            _root?.NotifyLightAttackHitStart();
+        }
+
+        /// <summary>
+        /// 重攻击有效命中窗口开始
+        /// Heavy attack active hit window start
+        /// </summary>
+        public void OnHeavyAttackHitStart()
+        {
+            _root?.NotifyHeavyAttackHitStart();
+        }
+
+        /// <summary>
+        /// 攻击有效命中窗口结束
+        /// Attack active hit window end
+        /// </summary>
+        public void OnAttackHitEnd()
+        {
+            _root?.NotifyAttackHitEnd();
         }
 
         /// <summary>

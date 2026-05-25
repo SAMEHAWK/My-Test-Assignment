@@ -18,10 +18,18 @@ namespace ActiveRagdoll.Character
         public Vector3 WorldIncomingDirection { get; }
 
         /// <summary>
+        /// 可选：攻击来源到角色的世界方向；用于未破平衡时的受击表现
+        /// Optional source-to-character world direction; used for non-depleted hit reactions
+        /// </summary>
+        public Vector3 WorldSourceDirection { get; }
+
+        /// <summary>
         /// 是否使用 WorldIncomingDirection
         /// Whether world incoming direction is set
         /// </summary>
         public bool HasWorldIncoming => WorldIncomingDirection.sqrMagnitude > 0.0001f;
+
+        public bool HasWorldSource => WorldSourceDirection.sqrMagnitude > 0.0001f;
 
         public Vector3 ContactPoint { get; }
         public float Impulse { get; }
@@ -35,7 +43,8 @@ namespace ActiveRagdoll.Character
             float impulse = 1f,
             bool bypassBalance = false,
             Object source = null,
-            Vector3 worldIncomingDirection = default)
+            Vector3 worldIncomingDirection = default,
+            Vector3 worldSourceDirection = default)
         {
             Type = type;
             Direction = direction;
@@ -44,6 +53,7 @@ namespace ActiveRagdoll.Character
             BypassBalance = bypassBalance;
             Source = source;
             WorldIncomingDirection = worldIncomingDirection;
+            WorldSourceDirection = worldSourceDirection;
         }
 
         /// <summary>

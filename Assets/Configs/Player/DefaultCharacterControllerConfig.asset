@@ -12,27 +12,28 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 492640b9eacc22742b417f9d91185562, type: 3}
   m_Name: DefaultCharacterControllerConfig
   m_EditorClassIdentifier: Assembly-CSharp::ActiveRagdoll.Character.CharacterControllerConfig
-  moveSpeed: 4
-  equippedMoveSpeed: 6
-  moveAcceleration: 10
+  moveSpeed: 3
+  equippedMoveSpeed: 5
+  moveAcceleration: 8
   moveDeceleration: 13
   heavyMoveSpeedMultiplier: 0.5
-  rotationSpeed: 12
+  rotationSpeed: 20
+  gravity: -25
+  groundedStickVelocity: -2
+  maxFallSpeed: 30
   maxBalance: 6
-  lightBalanceDamage: 0
-  heavyBalanceDamage: 0
-  balanceRegenDelay: 1.75
-  balanceRegenPerSecond: 2
+  lightBalanceDamage: 1
+  heavyBalanceDamage: 2
+  balanceRegenDelay: 4
+  balanceRegenPerSecond: 1
   lightFlinchDuration: 0.3
-  heavyBlendBackDuration: 0.8
-  heavyPartialRagdollRadius: 0.9
-  heavyPartialRagdollMaxBodies: 10
-  heavyPartialPhysicsHoldDuration: 0.3
-  heavyPartialPrimaryImpulseMultiplier: 1.4
-  heavyPartialSecondaryImpulseMultiplier: 0.45
-  heavyPartialAngularImpulseMultiplier: 0.4
-  heavyPartialSolverIterations: 12
-  heavyPartialSolverVelocityIterations: 4
+  heavyBlendBackDuration: 1
+  heavyStaggerUseRootMotion: 1
+  heavyRootMotionPlanarScale: 1
+  heavyRootMotionMaxDeltaPerFrame: 0.45
+  attackUseRootMotion: 1
+  attackRootMotionPlanarScale: 1
+  attackRootMotionMaxDeltaPerFrame: 0.45
   lightFlinchRootKnockbackDistance: 0
   lightFlinchSpineRecoilEnabled: 1
   lightFlinchSpinePitchDegrees: 32

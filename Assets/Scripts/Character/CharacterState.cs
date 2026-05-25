@@ -12,6 +12,9 @@ namespace ActiveRagdoll.Character
         /// <summary>拔刀/收刀 overlay 播片（Grounded 子态）— Weapon equip overlay playback</summary>
         WeaponEquipPlayback,
 
+        /// <summary>主动攻击播片 — Player attack playback</summary>
+        AttackPlayback,
+
         /// <summary>轻击反应 — Light hit flinch</summary>
         LightFlinch,
 

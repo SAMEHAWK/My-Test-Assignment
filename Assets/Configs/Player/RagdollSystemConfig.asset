@@ -17,14 +17,14 @@ MonoBehaviour:
   settleSpeedThreshold: 0.15
   settleStableDuration: 0.15
   heavyPartialRadius: 0.65
-  heavyPartialMaxBodies: 6
-  heavyPartialPhysicsHoldDuration: 0.18
-  heavyPartialPrimaryImpulseMultiplier: 0.85
-  heavyPartialSecondaryImpulseMultiplier: 0.45
-  heavyPartialAngularImpulseMultiplier: 0.18
+  heavyPartialMaxBodies: 4
+  heavyPartialPhysicsHoldDuration: 0.55
+  heavyPartialPrimaryImpulseMultiplier: 1
+  heavyPartialSecondaryImpulseMultiplier: 0.65
+  heavyPartialAngularImpulseMultiplier: 0.1
   heavyPartialSolverIterations: 12
   heavyPartialSolverVelocityIterations: 4
-  heavyPartialBlendBackDuration: 0.75
+  heavyPartialBlendBackDuration: 1
   heavyPartialBlendBackCurve:
     serializedVersion: 2
     m_Curve:
@@ -37,6 +37,33 @@ MonoBehaviour:
       weightedMode: 0
       inWeight: 0
       outWeight: 0
+    - serializedVersion: 3
+      time: 0.4935475
+      value: -0.00089324825
+      inSlope: -0.0015654579
+      outSlope: -0.0015654579
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 1
+    - serializedVersion: 3
+      time: 0.67082417
+      value: 0.37512144
+      inSlope: 4.2583685
+      outSlope: 4.2583685
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.03875749
+      outWeight: 0.33302662
+    - serializedVersion: 3
+      time: 0.86681294
+      value: 0.9452049
+      inSlope: 1.0017967
+      outSlope: 1.0017967
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.6663413
     - serializedVersion: 3
       time: 1
       value: 1

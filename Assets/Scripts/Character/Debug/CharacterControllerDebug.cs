@@ -26,6 +26,14 @@ namespace ActiveRagdoll.Character
         [SerializeField] KeyCode rightArmKey = KeyCode.F5;
         [SerializeField] KeyCode leftLegKey = KeyCode.F6;
         [SerializeField] KeyCode rightLegKey = KeyCode.F7;
+        [SerializeField] KeyCode leftElbowKey = KeyCode.F8;
+        [SerializeField] KeyCode rightElbowKey = KeyCode.F9;
+        [SerializeField] KeyCode leftWristKey = KeyCode.F10;
+        [SerializeField] KeyCode rightWristKey = KeyCode.F11;
+        [SerializeField] KeyCode leftKneeKey = KeyCode.F12;
+        [SerializeField] KeyCode rightKneeKey = KeyCode.F13;
+        [SerializeField] KeyCode leftAnkleKey = KeyCode.F14;
+        [SerializeField] KeyCode rightAnkleKey = KeyCode.F15;
         [Header("Force KO Debug / 强制击倒调试冲量")]
         [SerializeField] float debugHeavyHitImpulse = 6f;
         [SerializeField] float debugForceKoLightImpulse = 2f;
@@ -81,7 +89,7 @@ namespace ActiveRagdoll.Character
             var x = 12;
             var y = 12;
 
-            GUI.Box(new Rect(x - 4, y - 4, width + 8, line * 44 + 12), "Character Debug");
+            GUI.Box(new Rect(x - 4, y - 4, width + 8, line * 56 + 12), "Character Debug");
             y += line;
 
             var ctx = root.Context;
@@ -104,19 +112,26 @@ namespace ActiveRagdoll.Character
             y += line;
             GUI.Label(new Rect(x, y, width, line), "布娃娃是否沉降完成 / Ragdoll settle flag");
             y += line;
-            GUI.Label(new Rect(x, y, width, line), $"RagdollSettled: {root.IsRagdollSettled}");
+            GUI.Label(new Rect(x, y, width, line), $"RagdollSettled: {ctx.IsRagdollSettled}");
             y += line;
-            GUI.Label(new Rect(x, y, width, line), $"RagdollMode: {root.CurrentRagdollMode}");
+            GUI.Label(new Rect(x, y, width, line), $"RagdollMode: {ctx.RagdollMode}");
             y += line;
-            GUI.Label(new Rect(x, y, width, line), $"RagdollBackend: {(root.IsUsingDualRagdoll ? "Dual" : root.IsUsingLegacyRagdollFallback ? "LegacyFallback" : "Uninitialized")}");
+            GUI.Label(new Rect(x, y, width, line), $"RagdollBackend: {(ctx.IsUsingDualRagdoll ? "Dual" : "Unavailable")}");
             y += line;
-            GUI.Label(new Rect(x, y, width, line), $"RagdollBackendStatus: {root.RagdollBackendStatus}");
+            GUI.Label(new Rect(x, y, width, line), $"RagdollBackendStatus: {ctx.RagdollBackendStatus}");
             y += line;
-            GUI.Label(new Rect(x, y, width, line), $"RagdollChain: {root.CurrentRagdollChain}  Mapped: {root.RagdollMappedBoneCount}");
+            GUI.Label(new Rect(x, y, width, line), $"RagdollChain: {ctx.RagdollChainName}  Mapped: {ctx.RagdollMappedBoneCount}");
             y += line;
             GUI.Label(new Rect(x, y, width, line), "当前受击接触点 / Current contact region");
             y += line;
             GUI.Label(new Rect(x, y, width, line), $"Contact: {debugContactRegion}");
+            y += line;
+            GUI.Label(new Rect(x, y, width, line), $"ContactSource: {root.LastResolvedDebugContactSource}");
+            y += line;
+            GUI.Label(new Rect(x, y, width, line), $"ContactBone: {(string.IsNullOrEmpty(root.LastResolvedDebugContactBoneName) ? "<none>" : root.LastResolvedDebugContactBoneName)}");
+            y += line;
+            var resolvedContact = root.LastResolvedDebugContactPoint;
+            GUI.Label(new Rect(x, y, width, line), $"ContactPoint: ({resolvedContact.x:F2},{resolvedContact.y:F2},{resolvedContact.z:F2})");
             y += line;
 
             GUI.Label(new Rect(x, y, width, line), "开关：是否使用 360° 连续方向 / Use continuous direction");
@@ -161,7 +176,7 @@ namespace ActiveRagdoll.Character
                 y += line;
             }
 
-            GUI.Label(new Rect(x, y, width, line), "当前方向向量（XZ）/ Current direction vector");
+            GUI.Label(new Rect(x, y, width, line), "当前受力方向向量（XZ）/ Current force direction vector");
             y += line;
             var debugDirectionWorld = BuildWorldIncomingDirection();
             GUI.Label(new Rect(x, y, width, line), $"Dir(xz)=({debugDirectionWorld.x:F2},{debugDirectionWorld.z:F2})");
@@ -171,36 +186,41 @@ namespace ActiveRagdoll.Character
             y += line;
             var topRow = GUI.Toolbar(
                 new Rect(x, y, width, line),
-                GetTopRowIndex(debugContactRegion),
-                new[] { "Head", "Chest", "Hips", "Left Arm" });
+                GetContactToolbarTopIndex(debugContactRegion),
+                new[] { "Head", "Chest", "Hips", "Left Arm", "Right Arm" });
             if (topRow >= 0)
-                debugContactRegion = topRow switch
-                {
-                    0 => DebugHitContactRegion.Head,
-                    1 => DebugHitContactRegion.Chest,
-                    2 => DebugHitContactRegion.Hips,
-                    3 => DebugHitContactRegion.LeftArm,
-                    _ => debugContactRegion
-                };
+                ApplyTopContactToolbarSelection(topRow, ref debugContactRegion);
             y += line;
 
-            var bottomRow = GUI.Toolbar(
+            var armDetailRow = GUI.Toolbar(
                 new Rect(x, y, width, line),
-                GetBottomRowIndex(debugContactRegion),
-                new[] { "Right Arm", "Left Leg", "Right Leg" });
-            if (bottomRow >= 0)
-                debugContactRegion = bottomRow switch
-                {
-                    0 => DebugHitContactRegion.RightArm,
-                    1 => DebugHitContactRegion.LeftLeg,
-                    2 => DebugHitContactRegion.RightLeg,
-                    _ => debugContactRegion
-                };
+                GetArmDetailToolbarIndex(debugContactRegion),
+                new[] { "Left Elbow", "Right Elbow", "Left Wrist", "Right Wrist" });
+            if (armDetailRow >= 0)
+                ApplyArmDetailToolbarSelection(armDetailRow, ref debugContactRegion);
+            y += line;
+
+            var legRow = GUI.Toolbar(
+                new Rect(x, y, width, line),
+                GetLegToolbarIndex(debugContactRegion),
+                new[] { "Left Leg", "Right Leg", "Left Knee", "Right Knee" });
+            if (legRow >= 0)
+                ApplyLegToolbarSelection(legRow, ref debugContactRegion);
+            y += line;
+
+            var ankleRow = GUI.Toolbar(
+                new Rect(x, y, width, line),
+                GetAnkleToolbarIndex(debugContactRegion),
+                new[] { "Left Ankle", "Right Ankle" });
+            if (ankleRow >= 0)
+                ApplyAnkleToolbarSelection(ankleRow, ref debugContactRegion);
             y += line;
 
             GUI.Label(new Rect(x, y, width, line), "接触点快捷键 / Contact region hotkeys");
             y += line;
-            GUI.Label(new Rect(x, y, width, line), $"Hotkeys: {headKey}/{chestKey}/{hipsKey}/{leftArmKey}/{rightArmKey}/{leftLegKey}/{rightLegKey}");
+            GUI.Label(new Rect(x, y, width, line), $"Base: {headKey}/{chestKey}/{hipsKey}/{leftArmKey}/{rightArmKey}/{leftLegKey}/{rightLegKey}");
+            y += line;
+            GUI.Label(new Rect(x, y, width, line), $"Detail: {leftElbowKey}/{rightElbowKey}/{leftWristKey}/{rightWristKey}/{leftKneeKey}/{rightKneeKey}/{leftAnkleKey}/{rightAnkleKey}");
             y += line;
 
             GUI.Label(new Rect(x, y, width, line), "轻击调试按钮（不击倒）/ Light hit trigger");
@@ -208,7 +228,11 @@ namespace ActiveRagdoll.Character
             if (GUI.Button(new Rect(x, y, width, line), "Light Hit"))
             {
                 if (useContinuousDirection)
+                {
+                    // 需求语义：箭头表示受力方向；轻击逻辑内部按“来向取反”驱动反应，因此此处传反向以得到“朝力方向”效果
+                    // Required semantics: arrow visualizes force direction; light-hit response internally negates incoming, so pass inverse here to move toward force
                     root.DebugHitLight(-debugDirectionWorld, root.GetDebugContactPoint(debugContactRegion));
+                }
                 else
                     root.DebugHitLight(debugDirection, debugContactRegion);
             }
@@ -342,26 +366,109 @@ namespace ActiveRagdoll.Character
                 debugContactRegion = DebugHitContactRegion.LeftLeg;
             else if (Input.GetKeyDown(rightLegKey))
                 debugContactRegion = DebugHitContactRegion.RightLeg;
+            else if (Input.GetKeyDown(leftElbowKey))
+                debugContactRegion = DebugHitContactRegion.LeftElbow;
+            else if (Input.GetKeyDown(rightElbowKey))
+                debugContactRegion = DebugHitContactRegion.RightElbow;
+            else if (Input.GetKeyDown(leftWristKey))
+                debugContactRegion = DebugHitContactRegion.LeftWrist;
+            else if (Input.GetKeyDown(rightWristKey))
+                debugContactRegion = DebugHitContactRegion.RightWrist;
+            else if (Input.GetKeyDown(leftKneeKey))
+                debugContactRegion = DebugHitContactRegion.LeftKnee;
+            else if (Input.GetKeyDown(rightKneeKey))
+                debugContactRegion = DebugHitContactRegion.RightKnee;
+            else if (Input.GetKeyDown(leftAnkleKey))
+                debugContactRegion = DebugHitContactRegion.LeftAnkle;
+            else if (Input.GetKeyDown(rightAnkleKey))
+                debugContactRegion = DebugHitContactRegion.RightAnkle;
         }
 
-        static int GetTopRowIndex(DebugHitContactRegion region) =>
+        static int GetContactToolbarTopIndex(DebugHitContactRegion region) =>
             region switch
             {
                 DebugHitContactRegion.Head => 0,
                 DebugHitContactRegion.Chest => 1,
                 DebugHitContactRegion.Hips => 2,
                 DebugHitContactRegion.LeftArm => 3,
+                DebugHitContactRegion.RightArm => 4,
                 _ => -1
             };
 
-        static int GetBottomRowIndex(DebugHitContactRegion region) =>
+        static void ApplyTopContactToolbarSelection(int index, ref DebugHitContactRegion region)
+        {
+            region = index switch
+            {
+                0 => DebugHitContactRegion.Head,
+                1 => DebugHitContactRegion.Chest,
+                2 => DebugHitContactRegion.Hips,
+                3 => DebugHitContactRegion.LeftArm,
+                4 => DebugHitContactRegion.RightArm,
+                _ => region
+            };
+        }
+
+        static int GetArmDetailToolbarIndex(DebugHitContactRegion region) =>
             region switch
             {
-                DebugHitContactRegion.RightArm => 0,
-                DebugHitContactRegion.LeftLeg => 1,
-                DebugHitContactRegion.RightLeg => 2,
+                DebugHitContactRegion.LeftElbow => 0,
+                DebugHitContactRegion.RightElbow => 1,
+                DebugHitContactRegion.LeftWrist => 2,
+                DebugHitContactRegion.RightWrist => 3,
                 _ => -1
             };
+
+        static void ApplyArmDetailToolbarSelection(int index, ref DebugHitContactRegion region)
+        {
+            region = index switch
+            {
+                0 => DebugHitContactRegion.LeftElbow,
+                1 => DebugHitContactRegion.RightElbow,
+                2 => DebugHitContactRegion.LeftWrist,
+                3 => DebugHitContactRegion.RightWrist,
+                _ => region
+            };
+        }
+
+        static int GetLegToolbarIndex(DebugHitContactRegion region) =>
+            region switch
+            {
+                DebugHitContactRegion.LeftLeg => 0,
+                DebugHitContactRegion.RightLeg => 1,
+                DebugHitContactRegion.LeftKnee => 2,
+                DebugHitContactRegion.RightKnee => 3,
+                _ => -1
+            };
+
+        static void ApplyLegToolbarSelection(int index, ref DebugHitContactRegion region)
+        {
+            region = index switch
+            {
+                0 => DebugHitContactRegion.LeftLeg,
+                1 => DebugHitContactRegion.RightLeg,
+                2 => DebugHitContactRegion.LeftKnee,
+                3 => DebugHitContactRegion.RightKnee,
+                _ => region
+            };
+        }
+
+        static int GetAnkleToolbarIndex(DebugHitContactRegion region) =>
+            region switch
+            {
+                DebugHitContactRegion.LeftAnkle => 0,
+                DebugHitContactRegion.RightAnkle => 1,
+                _ => -1
+            };
+
+        static void ApplyAnkleToolbarSelection(int index, ref DebugHitContactRegion region)
+        {
+            region = index switch
+            {
+                0 => DebugHitContactRegion.LeftAnkle,
+                1 => DebugHitContactRegion.RightAnkle,
+                _ => region
+            };
+        }
 
         void DrawHitGizmos()
         {

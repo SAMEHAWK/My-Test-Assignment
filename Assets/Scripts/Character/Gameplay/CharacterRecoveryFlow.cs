@@ -18,10 +18,6 @@ namespace ActiveRagdoll.Character
     /// </summary>
     public sealed class CharacterRecoveryFlow : ICharacterModule
     {
-        readonly Transform _faceProbeTransform;
-        readonly Transform _fallbackSpineTransform;
-        readonly float _faceUpDotThreshold;
-
         float _recoverTimer;
         float _fallbackRecoverDuration;
         bool _hasActiveRecovery;
@@ -34,12 +30,7 @@ namespace ActiveRagdoll.Character
 
         public RecoveryGetUpType CurrentGetUpType => _currentGetUpType;
 
-        public CharacterRecoveryFlow(Transform faceProbeTransform, Transform fallbackSpineTransform, float faceUpDotThreshold)
-        {
-            _faceProbeTransform = faceProbeTransform;
-            _fallbackSpineTransform = fallbackSpineTransform;
-            _faceUpDotThreshold = faceUpDotThreshold;
-        }
+        public CharacterRecoveryFlow() { }
 
         public void BeginRecovery(RecoveryGetUpType getUpType, float fallbackRecoverDuration = PlaceholderRecoverDuration)
         {
@@ -52,39 +43,14 @@ namespace ActiveRagdoll.Character
 
         public void MarkGetUpFinished() => _isGetUpFinished = true;
 
-        public bool IsFaceUp()
-        {
-            if (_faceProbeTransform == null && _fallbackSpineTransform == null)
-                return true;
-
-            // 优先用胸口朝向轴（forward）判定仰/俯：朝上=仰躺，朝下=俯卧
-            // Prefer torso forward axis for face-up/down classification
-            if (_faceProbeTransform != null)
-            {
-                var forwardDot = Vector3.Dot(_faceProbeTransform.forward, Vector3.up);
-                if (Mathf.Abs(forwardDot) > 0.05f)
-                    return forwardDot > _faceUpDotThreshold;
-            }
-
-            // 兜底：旧逻辑兼容（某些模型可能未配置 torso facing）
-            // Fallback: legacy spine-up heuristic for compatibility
-            if (_fallbackSpineTransform != null)
-                return Vector3.Dot(_fallbackSpineTransform.up, Vector3.up) > _faceUpDotThreshold;
-
-            return true;
-        }
-
-        public RecoveryGetUpType EvaluateGetUpType() =>
-            IsFaceUp() ? RecoveryGetUpType.Back : RecoveryGetUpType.Front;
-
         public void OnEnterState(CharacterState state, in HitContext hitContext)
         {
             if (state == CharacterState.Recovering)
             {
-                // 兜底：若外部未显式 BeginRecovery，按当前朝向自动开始
-                // Fallback: auto-begin by current facing if not explicitly started
+                // 兜底：若外部未显式 BeginRecovery，固定使用 Back 保证流程可继续
+                // Fallback: if BeginRecovery was not called, force Back to keep flow running
                 if (!_hasActiveRecovery)
-                    BeginRecovery(EvaluateGetUpType());
+                    BeginRecovery(RecoveryGetUpType.Back);
             }
         }
 

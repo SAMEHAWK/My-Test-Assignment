@@ -26,17 +26,27 @@ namespace ActiveRagdoll.Character
         [Tooltip("重击状态 CrossFade 时长（秒）— CrossFade duration for heavy-stagger state")]
         public float heavyStaggerCrossFadeDuration = 0.08f;
 
-        [Tooltip("重击局部物理链融合回动画时长（秒）— Blend-back duration for heavy partial ragdoll chain")]
-        public float heavyPartialBlendBackDuration = 0.65f;
-
-        [Tooltip("重击局部物理链融合曲线（0=物理，1=动画）— Blend-back curve for heavy partial chain (0=physics, 1=animation)")]
-        public AnimationCurve heavyPartialBlendBackCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
-
         [Header("Weapon Equip / 装备武器")]
         public string movingParam = "Moving";
         public string equippedParam = "Equipped";
         public string upBodyLayerName = "UpBodyLayer";
         public string fullBodyLayerName = "FullBodyLayer";
+        [Tooltip("装备武器时播放重击的无手臂层名称 — No-arm heavy-hit layer name used while weapon is equipped")]
+        public string noArmLayerName = "NoArmLayer";
+
+        [Header("Attack / 主动攻击")]
+        [Tooltip("主动攻击层名称 — Player attack layer name")]
+        public string attackLayerName = "AttackLayer";
+        [Tooltip("主动攻击轻攻击状态名 — Light attack state name")]
+        public string attackLightStateName = "AttackLight";
+        [Tooltip("主动攻击重攻击状态名 — Heavy attack state name")]
+        public string attackHeavyStateName = "AttackHeavy";
+        [Tooltip("攻击状态 CrossFade 时长（秒）— CrossFade duration for attack states")]
+        public float attackCrossFadeDuration = 0.06f;
+        [Tooltip("攻击层淡出时长（秒）— Attack layer fade-out duration")]
+        public float attackOverlayFadeOutDuration = 0.08f;
+        [Tooltip("攻击动画事件缺失时的兜底完成时长（秒）— Fallback completion duration when attack event is missing")]
+        public float attackFallbackDuration = 1.2f;
 
         [Tooltip("归一化 Speed 超过此值视为移动 — Normalized speed above = moving")]
         [Range(0f, 1f)]

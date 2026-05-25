@@ -12,6 +12,7 @@ namespace ActiveRagdoll.Character
 
         int _currentBalance;
         float _timeSinceLastHit;
+        float _balanceRegenRemainder;
 
         public int CurrentBalance => _currentBalance;
         public int MaxBalance => _config != null ? _config.maxBalance : 6;
@@ -26,6 +27,7 @@ namespace ActiveRagdoll.Character
         {
             _currentBalance = _config != null ? _config.maxBalance : 6;
             _timeSinceLastHit = 0f;
+            _balanceRegenRemainder = 0f;
         }
 
         public bool ApplyBalanceDamage(in HitContext hitContext)
@@ -34,6 +36,7 @@ namespace ActiveRagdoll.Character
                 return false;
 
             _timeSinceLastHit = 0f;
+            _balanceRegenRemainder = 0f;
 
             var damage = hitContext.Type == HitType.Heavy
                 ? _config.heavyBalanceDamage
@@ -51,6 +54,7 @@ namespace ActiveRagdoll.Character
         {
             _currentBalance = 0;
             _timeSinceLastHit = 0f;
+            _balanceRegenRemainder = 0f;
         }
 
         public void TickBalance(float deltaTime)
@@ -65,9 +69,17 @@ namespace ActiveRagdoll.Character
             if (_currentBalance >= _config.maxBalance)
                 return;
 
-            _currentBalance = Mathf.Min(
-                _config.maxBalance,
-                _currentBalance + Mathf.RoundToInt(_config.balanceRegenPerSecond * deltaTime));
+            // 每帧恢复量通常小于 1，需累积小数，避免 RoundToInt 每帧归零
+            // Per-frame regen is often below 1; accumulate fractional progress instead of rounding to zero
+            _balanceRegenRemainder += Mathf.Max(0f, _config.balanceRegenPerSecond) * deltaTime;
+            var wholeRegen = Mathf.FloorToInt(_balanceRegenRemainder);
+            if (wholeRegen <= 0)
+                return;
+
+            _balanceRegenRemainder -= wholeRegen;
+            _currentBalance = Mathf.Min(_config.maxBalance, _currentBalance + wholeRegen);
+            if (_currentBalance >= _config.maxBalance)
+                _balanceRegenRemainder = 0f;
         }
 
         public void OnEnterState(CharacterState state, in HitContext hitContext) { }

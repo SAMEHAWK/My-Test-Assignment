@@ -3,8 +3,8 @@ using UnityEngine;
 namespace ActiveRagdoll.Character
 {
     /// <summary>
-    /// Ragdoll 系统运行参数（双骨架/单骨架兜底共用）
-    /// Runtime parameters for ragdoll system (shared by dual-skeleton and legacy fallback)
+    /// Ragdoll 系统运行参数（双骨架主路径）
+    /// Runtime parameters for dual-skeleton primary path
     /// </summary>
     [CreateAssetMenu(fileName = "RagdollSystemConfig", menuName = "Active Ragdoll/Ragdoll System Config")]
     public sealed class RagdollSystemConfig : ScriptableObject

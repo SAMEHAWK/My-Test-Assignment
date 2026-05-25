@@ -116,7 +116,9 @@ namespace ActiveRagdoll.Character
             if (incoming.sqrMagnitude < 0.0001f)
                 incoming = facing.forward;
 
-            var recoil = -incoming.normalized;
+            // incoming 在当前命中语义中就是攻击源指向角色的施力方向，弯曲应与施力方向一致
+            // incoming is the force direction from source to character; recoil bending should follow it
+            var recoil = incoming.normalized;
             var local = applyBone.InverseTransformDirection(recoil);
             var pitch = local.z * pitchDegrees;
             var roll = -local.x * rollDegrees;

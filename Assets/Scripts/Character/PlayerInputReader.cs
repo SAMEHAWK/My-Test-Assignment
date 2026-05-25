@@ -14,9 +14,13 @@ namespace ActiveRagdoll.Character
         [SerializeField] string actionMapName = "Player";
         [SerializeField] string moveActionName = "Move";
         [SerializeField] string equipActionName = "Equip";
+        [SerializeField] string lightAttackActionName = "LightAttack";
+        [SerializeField] string heavyAttackActionName = "HeavyAttack";
 
         InputAction _moveAction;
         InputAction _equipAction;
+        InputAction _lightAttackAction;
+        InputAction _heavyAttackAction;
         CharacterControllerRoot _controllerRoot;
 
         void Awake()
@@ -44,18 +48,37 @@ namespace ActiveRagdoll.Character
             var map = inputActions.FindActionMap(actionMapName, true);
             _moveAction = map.FindAction(moveActionName, true);
             _equipAction = map.FindAction(equipActionName, true);
+            _lightAttackAction = map.FindAction(lightAttackActionName, false);
+            _heavyAttackAction = map.FindAction(heavyAttackActionName, false);
+
+#if UNITY_EDITOR
+            if (_lightAttackAction == null)
+                Debug.LogWarning(
+                    $"[PlayerInputReader] 未找到轻攻击 Input Action: {lightAttackActionName}\n" +
+                    $"[PlayerInputReader] Light attack action not found: {lightAttackActionName}",
+                    this);
+            if (_heavyAttackAction == null)
+                Debug.LogWarning(
+                    $"[PlayerInputReader] 未找到重攻击 Input Action: {heavyAttackActionName}\n" +
+                    $"[PlayerInputReader] Heavy attack action not found: {heavyAttackActionName}",
+                    this);
+#endif
         }
 
         void OnEnable()
         {
             _moveAction?.Enable();
             _equipAction?.Enable();
+            _lightAttackAction?.Enable();
+            _heavyAttackAction?.Enable();
         }
 
         void OnDisable()
         {
             _moveAction?.Disable();
             _equipAction?.Disable();
+            _lightAttackAction?.Disable();
+            _heavyAttackAction?.Disable();
         }
 
         void Update()
@@ -68,6 +91,10 @@ namespace ActiveRagdoll.Character
 
             if (_equipAction != null && _equipAction.WasPressedThisFrame())
                 _controllerRoot.TryToggleWeaponEquip();
+            if (_lightAttackAction != null && _lightAttackAction.WasPressedThisFrame())
+                _controllerRoot.TryLightAttack();
+            if (_heavyAttackAction != null && _heavyAttackAction.WasPressedThisFrame())
+                _controllerRoot.TryHeavyAttack();
         }
     }
 }

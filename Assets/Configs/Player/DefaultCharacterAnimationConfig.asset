@@ -19,53 +19,17 @@ MonoBehaviour:
   flinchLayerName: FlinchLayer
   heavyStaggerStateName: HitHeavy
   heavyStaggerCrossFadeDuration: 1
-  heavyPartialBlendBackDuration: 1
-  heavyPartialBlendBackCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 0
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    - serializedVersion: 3
-      time: 0.31450307
-      value: 0.4727085
-      inSlope: 1.3850008
-      outSlope: 1.3850008
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.33333334
-      outWeight: 0.31547886
-    - serializedVersion: 3
-      time: 0.7208766
-      value: 0.9357047
-      inSlope: 0.4058437
-      outSlope: 0.4058437
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.3179997
-      outWeight: 0.35888916
-    - serializedVersion: 3
-      time: 1
-      value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
   movingParam: Moving
   equippedParam: Equipped
   upBodyLayerName: UpBodyLayer
   fullBodyLayerName: FullBodyLayer
+  noArmLayerName: NoArmLayer
+  attackLayerName: AttackLayer
+  attackLightStateName: AttackLight
+  attackHeavyStateName: AttackHeavy
+  attackCrossFadeDuration: 0.06
+  attackOverlayFadeOutDuration: 0.08
+  attackFallbackDuration: 3
   movingSpeedThreshold: 0.1
   equipFullBodyStateName: wp_Equip_inplace
   equipUpBodyStateName: wp_Equip_inplace

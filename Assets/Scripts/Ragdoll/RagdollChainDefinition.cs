@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using UnityEngine;
 
 namespace ActiveRagdoll.Character
@@ -65,16 +66,41 @@ namespace ActiveRagdoll.Character
             if (string.IsNullOrWhiteSpace(boneName) || boneNameKeywords == null || boneNameKeywords.Length == 0)
                 return false;
 
+            var normalizedBoneName = NormalizeToken(boneName);
+            if (string.IsNullOrEmpty(normalizedBoneName))
+                return false;
+
             for (var i = 0; i < boneNameKeywords.Length; i++)
             {
                 var keyword = boneNameKeywords[i];
                 if (string.IsNullOrWhiteSpace(keyword))
                     continue;
-                if (boneName.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
+
+                var normalizedKeyword = NormalizeToken(keyword);
+                if (string.IsNullOrEmpty(normalizedKeyword))
+                    continue;
+
+                if (normalizedBoneName.Contains(normalizedKeyword, StringComparison.OrdinalIgnoreCase))
                     return true;
             }
 
             return false;
+        }
+
+        static string NormalizeToken(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return string.Empty;
+
+            var sb = new StringBuilder(raw.Length);
+            for (var i = 0; i < raw.Length; i++)
+            {
+                var c = raw[i];
+                if (char.IsLetterOrDigit(c))
+                    sb.Append(char.ToLowerInvariant(c));
+            }
+
+            return sb.ToString();
         }
     }
 }

@@ -19,7 +19,7 @@ MonoBehaviour:
     propagationMode: 2
     includeChildren: 0
     maxParentDepth: 1
-    maxChildDepth: 0
+    maxChildDepth: 2
     parentFalloff: 0.6
     childFalloff: 0.75
     minPropagationWeight: 0.2
@@ -32,8 +32,21 @@ MonoBehaviour:
     - spine
     propagationMode: 2
     includeChildren: 1
-    maxParentDepth: 1
-    maxChildDepth: 2
+    maxParentDepth: 0
+    maxChildDepth: 6
+    parentFalloff: 0.6
+    childFalloff: 0.75
+    minPropagationWeight: 0.2
+    impulseMultiplier: 1
+    writebackWeight: 1
+  - chainName: hips
+    boneNameKeywords:
+    - hips
+    - pelvis
+    propagationMode: 0
+    includeChildren: 0
+    maxParentDepth: 0
+    maxChildDepth: 0
     parentFalloff: 0.6
     childFalloff: 0.75
     minPropagationWeight: 0.2
@@ -47,7 +60,7 @@ MonoBehaviour:
     - lefthand
     propagationMode: 2
     includeChildren: 1
-    maxParentDepth: 2
+    maxParentDepth: 1
     maxChildDepth: 2
     parentFalloff: 0.6
     childFalloff: 0.75
@@ -62,7 +75,7 @@ MonoBehaviour:
     - righthand
     propagationMode: 2
     includeChildren: 1
-    maxParentDepth: 2
+    maxParentDepth: 1
     maxChildDepth: 2
     parentFalloff: 0.6
     childFalloff: 0.75
@@ -76,7 +89,7 @@ MonoBehaviour:
     - leftfoot
     propagationMode: 2
     includeChildren: 1
-    maxParentDepth: 2
+    maxParentDepth: 1
     maxChildDepth: 2
     parentFalloff: 0.6
     childFalloff: 0.75
@@ -90,7 +103,7 @@ MonoBehaviour:
     - rightfoot
     propagationMode: 2
     includeChildren: 1
-    maxParentDepth: 2
+    maxParentDepth: 1
     maxChildDepth: 2
     parentFalloff: 0.6
     childFalloff: 0.75

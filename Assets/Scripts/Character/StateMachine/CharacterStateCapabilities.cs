@@ -42,6 +42,12 @@ namespace ActiveRagdoll.Character
                     canMove: true,
                     canToggleWeapon: false),
 
+                CharacterState.AttackPlayback => new CharacterStateCapabilities(
+                    state,
+                    CharacterSuperstate.Grounded,
+                    canMove: false,
+                    canToggleWeapon: false),
+
                 CharacterState.LightFlinch => new CharacterStateCapabilities(
                     state,
                     CharacterSuperstate.HitReaction,
@@ -51,7 +57,7 @@ namespace ActiveRagdoll.Character
                 CharacterState.HeavyStagger => new CharacterStateCapabilities(
                     state,
                     CharacterSuperstate.HitReaction,
-                    canMove: true,
+                    canMove: false,
                     canToggleWeapon: false),
 
                 CharacterState.Knockdown => new CharacterStateCapabilities(
