@@ -12,7 +12,7 @@ namespace ActiveRagdoll.Character.Editor
     /// </summary>
     public static class PlayerAnimatorFlinchSetup
     {
-        const string ControllerPath = "Assets/Animator/Player_Animator Controller.controller";
+        const string ControllerPath = "Assets/Animator/Player_Animator_Controller.controller";
         const string MaskPath = "Assets/Models/UpBody.mask";
         const string FlinchLayerName = "FlinchLayer";
         const string HitBlendX = "HitBlendX";
