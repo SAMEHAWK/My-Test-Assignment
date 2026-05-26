@@ -51,6 +51,8 @@ namespace ActiveRagdoll.Character
         CharacterAnimationPresenter _animation;
         CharacterCombat _combat;
         CharacterRecoveryFlow _recovery;
+        CharacterRecoveryAlignment _recoveryAlignment;
+        CharacterDebugHitDriver _debugHitDriver;
 
         readonly List<ICharacterModule> _modules = new();
         readonly CharacterContext _context = new();
@@ -60,14 +62,6 @@ namespace ActiveRagdoll.Character
         bool _lightFlinchOverlayActive;
         float _lightFlinchOverlayTime;
         bool _heavyStaggerAnimationFinished;
-        Vector3 _initialRootMinusHipsOffset;
-        bool _hasInitialRootMinusHipsOffset;
-        bool _hasLastDebugHit;
-        float _lastDebugHitTime = -1f;
-        HitContext _lastDebugHit;
-        Vector3 _lastResolvedDebugContactPoint;
-        string _lastResolvedDebugContactSource = "Unknown";
-        string _lastResolvedDebugContactBoneName = string.Empty;
 
         public CharacterState CurrentState => _hsm.CurrentState;
 
@@ -93,12 +87,14 @@ namespace ActiveRagdoll.Character
         public Vector3 RagdollDebugImpulseDirection => ragdollSystem != null ? ragdollSystem.DebugImpulseDirection : transform.forward;
         public Transform RagdollDebugPrimaryAffectedBone => ragdollSystem != null ? ragdollSystem.DebugPrimaryAffectedBone : null;
         public IReadOnlyList<Transform> RagdollDebugAffectedBones => ragdollSystem != null ? ragdollSystem.DebugAffectedBones : Array.Empty<Transform>();
-        public bool HasLastDebugHit => _hasLastDebugHit;
-        public float LastDebugHitTime => _lastDebugHitTime;
-        public HitContext LastDebugHit => _lastDebugHit;
-        public Vector3 LastResolvedDebugContactPoint => _lastResolvedDebugContactPoint;
-        public string LastResolvedDebugContactSource => _lastResolvedDebugContactSource;
-        public string LastResolvedDebugContactBoneName => _lastResolvedDebugContactBoneName;
+        public CharacterDebugHitDriver DebugHitDriver => _debugHitDriver;
+
+        public bool HasLastDebugHit => _debugHitDriver != null && _debugHitDriver.HasLastDebugHit;
+        public float LastDebugHitTime => _debugHitDriver != null ? _debugHitDriver.LastDebugHitTime : -1f;
+        public HitContext LastDebugHit => _debugHitDriver != null ? _debugHitDriver.LastDebugHit : default;
+        public Vector3 LastResolvedDebugContactPoint => _debugHitDriver != null ? _debugHitDriver.LastResolvedDebugContactPoint : transform.position;
+        public string LastResolvedDebugContactSource => _debugHitDriver != null ? _debugHitDriver.LastResolvedDebugContactSource : "Unknown";
+        public string LastResolvedDebugContactBoneName => _debugHitDriver != null ? _debugHitDriver.LastResolvedDebugContactBoneName : string.Empty;
         public bool IsInKnockdownPhase =>
             _hsm.CurrentState is CharacterState.Knockdown or CharacterState.ForcedKnockdown;
         public bool IsInRecoveryPhase => _hsm.CurrentState == CharacterState.Recovering;
@@ -195,6 +191,14 @@ namespace ActiveRagdoll.Character
                 transform,
                 animator != null ? animator.transform : transform);
             _recovery = new CharacterRecoveryFlow();
+            _recoveryAlignment = new CharacterRecoveryAlignment(
+                transform,
+                animator,
+                unityCharacterController,
+                animationConfig,
+                preAlignRotationBeforeRecovering,
+                recoveryAxisForceAlignMinAngle);
+            _debugHitDriver = new CharacterDebugHitDriver(this, animator, ragdollSystem);
 
             _modules.Clear();
             _modules.Add(_locomotion);
@@ -208,7 +212,6 @@ namespace ActiveRagdoll.Character
             foreach (var module in _modules)
                 module.OnEnterState(CharacterState.Locomotion, default);
 
-            CacheInitialRecoveryOffsets();
             _initialized = true;
             SyncContext();
         }
@@ -406,36 +409,15 @@ namespace ActiveRagdoll.Character
                             ? ragdollSystem.EvaluateGetUpType()
                             : RecoveryGetUpType.Back;
 
-                        var currentForward = ResolveCurrentVisualForward();
-                        if (!recoveryAnchor.IsValid)
-                        {
-#if UNITY_EDITOR
-                            Debug.LogWarning(
-                                "[CharacterControllerRoot] Recovery anchor 无效，使用当前根位置与朝向回退。\n" +
-                                "[CharacterControllerRoot] Recovery anchor invalid; fallback to current root position/forward.",
-                                this);
-#endif
-                            recoveryAnchor = new RagdollAnchor(transform.position, currentForward, true);
-                        }
-                        AlignRootPositionToRecoveryAnchor(in recoveryAnchor);
-                        var resolvedForward = ResolveRecoveryForward(currentForward, recoveryAnchor.FacingForward, getUpType, out var shouldFlipBack, out var angleToAnchor);
-                        var shouldApplyRecoveryVisualAlign = ShouldApplyRecoveryVisualAlign(angleToAnchor);
-                        if (shouldApplyRecoveryVisualAlign)
-                            ApplyRecoveryVisualRotation(resolvedForward);
+                        _recoveryAlignment?.AlignForRecovery(
+                            ref recoveryAnchor,
+                            getUpType,
+                            out var resolvedForward,
+                            out var shouldFlipBack,
+                            out var angleToAnchor,
+                            out var appliedVisualRotation);
 
-#if UNITY_EDITOR
-                        if (recoveryAnchor.IsValid)
-                        {
-                            var currentYaw = Mathf.Atan2(currentForward.x, currentForward.z) * Mathf.Rad2Deg;
-                            var anchorYaw = Mathf.Atan2(recoveryAnchor.FacingForward.x, recoveryAnchor.FacingForward.z) * Mathf.Rad2Deg;
-                            Debug.Log(
-                                $"[RecoveryAlign] preAlignRotation={preAlignRotationBeforeRecovering}, effectiveAlign={shouldApplyRecoveryVisualAlign}, getUpType={getUpType}, " +
-                                $"currentYaw={currentYaw:F1}, anchorYaw={anchorYaw:F1}, angle={angleToAnchor:F1}, autoFlipBack={shouldFlipBack}",
-                                this);
-                        }
-#endif
-
-                        _recovery?.BeginRecovery(getUpType, ResolveRecoveryFallbackDuration(getUpType));
+                        _recovery?.BeginRecovery(getUpType, _recoveryAlignment?.ResolveRecoveryFallbackDuration(getUpType) ?? 2f);
                         _animation?.SetPendingRecoveryType(getUpType);
                         if (!recoveryPose.IsValid)
                         {
@@ -467,8 +449,6 @@ namespace ActiveRagdoll.Character
                 return;
 
             var resolvedHitContext = hitContext;
-            _hasLastDebugHit = true;
-            _lastDebugHitTime = Time.time;
 
             CharacterState target;
 
@@ -486,7 +466,7 @@ namespace ActiveRagdoll.Character
                 target = CharacterStateMachine.ResolveHitTarget(hitContext, depleted);
             }
 
-            _lastDebugHit = resolvedHitContext;
+            _debugHitDriver?.RecordDebugHit(in resolvedHitContext);
             _context.LastHit = resolvedHitContext;
 
             if (target == CharacterState.HeavyStagger)
@@ -637,18 +617,6 @@ namespace ActiveRagdoll.Character
             _context.IsUsingDualRagdoll = IsUsingDualRagdoll;
         }
 
-        void CacheInitialRecoveryOffsets()
-        {
-            if (!TryGetHumanoidHips(out var hips))
-            {
-                _hasInitialRootMinusHipsOffset = false;
-                return;
-            }
-
-            _initialRootMinusHipsOffset = transform.position - hips.position;
-            _hasInitialRootMinusHipsOffset = true;
-        }
-
         bool TryGetHumanoidHips(out Transform hips)
         {
             hips = null;
@@ -672,155 +640,6 @@ namespace ActiveRagdoll.Character
             if (animator != null)
                 return animator.transform;
             return transform;
-        }
-
-        void AlignRootPositionToRecoveryAnchor(in RagdollAnchor anchor)
-        {
-            if (!anchor.IsValid)
-                return;
-
-            var targetRootPosition = anchor.HipsWorldPosition;
-            if (_hasInitialRootMinusHipsOffset)
-                targetRootPosition += _initialRootMinusHipsOffset;
-            else
-                targetRootPosition.y = transform.position.y;
-
-            // 防止直接使用 ragdoll hips 的低位 Y 导致起身开场沉地
-            // Avoid sinking: align by XZ and solve a grounded Y for CharacterController
-            targetRootPosition.y = ResolveRecoveryRootY(targetRootPosition, anchor.HipsWorldPosition.y);
-
-            var ccWasEnabled = unityCharacterController != null && unityCharacterController.enabled;
-            if (ccWasEnabled)
-                unityCharacterController.enabled = false;
-
-            transform.position = targetRootPosition;
-
-            if (ccWasEnabled)
-                unityCharacterController.enabled = true;
-        }
-
-        Vector3 ResolveCurrentVisualForward()
-        {
-            var forward = animator != null ? animator.transform.forward : transform.forward;
-            forward.y = 0f;
-            if (forward.sqrMagnitude < 0.0001f)
-                forward = transform.forward;
-            forward.y = 0f;
-            return forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
-        }
-
-        Vector3 ResolveRecoveryForward(
-            Vector3 currentForward,
-            Vector3 anchorForward,
-            RecoveryGetUpType getUpType,
-            out bool shouldFlipBack,
-            out float angleToAnchor)
-        {
-            var normalizedCurrent = currentForward;
-            normalizedCurrent.y = 0f;
-            if (normalizedCurrent.sqrMagnitude < 0.0001f)
-                normalizedCurrent = transform.forward;
-            normalizedCurrent.y = 0f;
-            normalizedCurrent = normalizedCurrent.sqrMagnitude > 0.0001f ? normalizedCurrent.normalized : Vector3.forward;
-
-            var normalizedAnchor = anchorForward;
-            normalizedAnchor.y = 0f;
-            if (normalizedAnchor.sqrMagnitude < 0.0001f)
-                normalizedAnchor = normalizedCurrent;
-            normalizedAnchor = normalizedAnchor.normalized;
-
-            angleToAnchor = Vector3.Angle(normalizedCurrent, normalizedAnchor);
-            // 固定主链路：Front=hips->head，Back=head->hips（即 anchor 反向）
-            // Fixed path: Front=hips->head, Back=head->hips (invert anchor for Back)
-            shouldFlipBack = getUpType == RecoveryGetUpType.Back;
-
-            return shouldFlipBack ? -normalizedAnchor : normalizedAnchor;
-        }
-
-        bool ShouldApplyRecoveryVisualAlign(float angleToAnchor)
-        {
-            if (preAlignRotationBeforeRecovering)
-                return true;
-
-            var threshold = Mathf.Clamp(recoveryAxisForceAlignMinAngle, 0f, 180f);
-            return angleToAnchor >= threshold;
-        }
-
-        void ApplyRecoveryVisualRotation(Vector3 resolvedForward)
-        {
-            if (animator == null)
-                return;
-
-            var planarForward = resolvedForward;
-            planarForward.y = 0f;
-            if (planarForward.sqrMagnitude < 0.0001f)
-                return;
-
-            animator.transform.rotation = Quaternion.LookRotation(planarForward.normalized, Vector3.up);
-        }
-
-        float ResolveRecoveryRootY(Vector3 targetRootPosition, float hipsWorldY)
-        {
-            var fallbackY = transform.position.y;
-            if (unityCharacterController == null)
-                return fallbackY;
-
-            var rayOrigin = new Vector3(
-                targetRootPosition.x,
-                Mathf.Max(hipsWorldY + 1.5f, fallbackY + 1.5f),
-                targetRootPosition.z);
-            if (!TryFindGroundHit(rayOrigin, 6f, out var hit))
-                return fallbackY;
-
-            var halfHeight = unityCharacterController.height * 0.5f;
-            var solvedY = hit.point.y - unityCharacterController.center.y + halfHeight + unityCharacterController.skinWidth;
-            return solvedY;
-        }
-
-        bool TryFindGroundHit(Vector3 origin, float maxDistance, out RaycastHit groundHit)
-        {
-            var hits = Physics.RaycastAll(
-                origin,
-                Vector3.down,
-                maxDistance,
-                Physics.DefaultRaycastLayers,
-                QueryTriggerInteraction.Ignore);
-
-            if (hits == null || hits.Length == 0)
-            {
-                groundHit = default;
-                return false;
-            }
-
-            Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
-            for (var i = 0; i < hits.Length; i++)
-            {
-                var hit = hits[i];
-                var hitTransform = hit.collider != null ? hit.collider.transform : null;
-                if (hitTransform != null && hitTransform.IsChildOf(transform))
-                    continue;
-
-                groundHit = hit;
-                return true;
-            }
-
-            groundHit = default;
-            return false;
-        }
-
-        float ResolveRecoveryFallbackDuration(RecoveryGetUpType getUpType)
-        {
-            if (animationConfig == null)
-                return 2f;
-
-            // 兜底解锁时长需要覆盖：PoseMatch + CrossFade + 目标起身时长，并留足缓冲
-            // Fallback unlock duration must cover PoseMatch + CrossFade + target get-up duration + buffer
-            var targetDuration = getUpType == RecoveryGetUpType.Back
-                ? animationConfig.getUpBackTargetDuration
-                : animationConfig.getUpFrontTargetDuration;
-            var poseMatchDuration = Mathf.Max(0f, animationConfig.recoveryPoseMatchDuration);
-            var crossFadeDuration = Mathf.Max(0f, animationConfig.getUpCrossFadeDuration);
-            return Mathf.Max(0.2f, targetDuration) + poseMatchDuration + crossFadeDuration + 0.8f;
         }
 
         /// <summary>
@@ -1002,241 +821,6 @@ namespace ActiveRagdoll.Character
                 return;
 
             attackHitDriver?.EndAttackHitWindow();
-        }
-
-        #endregion
-
-        #region Debug API / 调试 API
-
-        public void DebugHitLight(HitDirection direction) =>
-            DebugHitLight(HitDirectionUtility.ToWorldVector(direction, transform));
-
-        public void DebugHitLight(HitDirection direction, DebugHitContactRegion contactRegion) =>
-            DebugHitLight(HitDirectionUtility.ToWorldVector(direction, transform), GetDebugContactPoint(contactRegion));
-
-        /// <summary>
-        /// 调试轻击（连续世界来向）
-        /// Debug light hit using continuous world incoming direction
-        /// </summary>
-        public void DebugHitLight(Vector3 worldIncomingDirection)
-        {
-            var incoming = worldIncomingDirection;
-            incoming.y = 0f;
-            if (incoming.sqrMagnitude < 0.0001f)
-                incoming = transform.forward;
-            incoming.Normalize();
-
-            var dir = HitDirectionUtility.ResolveDirectionFromWorld(incoming, transform);
-            ReceiveHit(new HitContext(
-                HitType.Light,
-                dir,
-                transform.position + Vector3.up,
-                impulse: 1f,
-                source: null,
-                worldIncomingDirection: incoming));
-        }
-
-        public void DebugHitLight(Vector3 worldIncomingDirection, Vector3 contactPoint)
-        {
-            var incoming = worldIncomingDirection;
-            incoming.y = 0f;
-            if (incoming.sqrMagnitude < 0.0001f)
-                incoming = transform.forward;
-            incoming.Normalize();
-
-            var dir = HitDirectionUtility.ResolveDirectionFromWorld(incoming, transform);
-            ReceiveHit(new HitContext(
-                HitType.Light,
-                dir,
-                contactPoint,
-                impulse: 1f,
-                source: null,
-                worldIncomingDirection: incoming));
-        }
-
-        public void DebugHitHeavy(HitDirection direction) =>
-            DebugHitHeavy(-HitDirectionUtility.ToWorldVector(direction, transform));
-
-        public void DebugHitHeavy(HitDirection direction, DebugHitContactRegion contactRegion) =>
-            DebugHitHeavy(-HitDirectionUtility.ToWorldVector(direction, transform), GetDebugContactPoint(contactRegion));
-
-        public void DebugHitHeavy(HitDirection direction, float impulseOverride, DebugHitContactRegion contactRegion) =>
-            DebugHitHeavy(-HitDirectionUtility.ToWorldVector(direction, transform), impulseOverride, GetDebugContactPoint(contactRegion));
-
-        /// <summary>
-        /// 调试重击（连续世界来向）
-        /// Debug heavy hit using continuous world incoming direction
-        /// </summary>
-        public void DebugHitHeavy(Vector3 worldIncomingDirection)
-        {
-            var incoming = worldIncomingDirection;
-            incoming.y = 0f;
-            if (incoming.sqrMagnitude < 0.0001f)
-                incoming = transform.forward;
-            incoming.Normalize();
-
-            var dir = HitDirectionUtility.ResolveDirectionFromWorld(incoming, transform);
-            ReceiveHit(new HitContext(
-                HitType.Heavy,
-                dir,
-                transform.position + Vector3.up * 1.2f,
-                impulse: 2f,
-                source: null,
-                worldIncomingDirection: incoming));
-        }
-
-        public void DebugHitHeavy(Vector3 worldIncomingDirection, float impulseOverride)
-        {
-            var incoming = worldIncomingDirection;
-            incoming.y = 0f;
-            if (incoming.sqrMagnitude < 0.0001f)
-                incoming = transform.forward;
-            incoming.Normalize();
-
-            var dir = HitDirectionUtility.ResolveDirectionFromWorld(incoming, transform);
-            ReceiveHit(new HitContext(
-                HitType.Heavy,
-                dir,
-                transform.position + Vector3.up * 1.2f,
-                impulse: Mathf.Max(0f, impulseOverride),
-                source: null,
-                worldIncomingDirection: incoming));
-        }
-
-        public void DebugHitHeavy(Vector3 worldIncomingDirection, Vector3 contactPoint)
-        {
-            var incoming = worldIncomingDirection;
-            incoming.y = 0f;
-            if (incoming.sqrMagnitude < 0.0001f)
-                incoming = transform.forward;
-            incoming.Normalize();
-
-            var dir = HitDirectionUtility.ResolveDirectionFromWorld(incoming, transform);
-            ReceiveHit(new HitContext(
-                HitType.Heavy,
-                dir,
-                contactPoint,
-                impulse: 2f,
-                source: null,
-                worldIncomingDirection: incoming));
-        }
-
-        public void DebugHitHeavy(Vector3 worldIncomingDirection, float impulseOverride, Vector3 contactPoint)
-        {
-            var incoming = worldIncomingDirection;
-            incoming.y = 0f;
-            if (incoming.sqrMagnitude < 0.0001f)
-                incoming = transform.forward;
-            incoming.Normalize();
-
-            var dir = HitDirectionUtility.ResolveDirectionFromWorld(incoming, transform);
-            ReceiveHit(new HitContext(
-                HitType.Heavy,
-                dir,
-                contactPoint,
-                impulse: Mathf.Max(0f, impulseOverride),
-                source: null,
-                worldIncomingDirection: incoming));
-        }
-
-        /// <summary>
-        /// 调试：轻击级强制击倒（清空平衡值）
-        /// Debug: force knockdown with light impulse semantics
-        /// </summary>
-        public void DebugForceKnockdownLight(Vector3 worldDirection, float impulseOverride) =>
-            ReceiveHit(HitContext.DebugForceKnockdownLight(worldDirection, transform, impulseOverride));
-
-        public void DebugForceKnockdownLight(Vector3 worldDirection, float impulseOverride, DebugHitContactRegion contactRegion) =>
-            ReceiveHit(HitContext.DebugForceKnockdownLight(worldDirection, transform, impulseOverride, GetDebugContactPoint(contactRegion)));
-
-        /// <summary>
-        /// 调试：重击级强制击倒（清空平衡值）
-        /// Debug: force knockdown with heavy impulse semantics
-        /// </summary>
-        public void DebugForceKnockdownHeavy(Vector3 worldDirection, float impulseOverride) =>
-            ReceiveHit(HitContext.DebugForceKnockdownHeavy(worldDirection, transform, impulseOverride));
-
-        public void DebugForceKnockdownHeavy(Vector3 worldDirection, float impulseOverride, DebugHitContactRegion contactRegion) =>
-            ReceiveHit(HitContext.DebugForceKnockdownHeavy(worldDirection, transform, impulseOverride, GetDebugContactPoint(contactRegion)));
-
-        /// <summary>
-        /// 调试用接触点：优先 Ragdoll 物理骨骼，其次 Humanoid 骨骼，最后回退到根节点偏移
-        /// Debug contact point: physics bones first, then humanoid, then root offsets
-        /// </summary>
-        public Vector3 GetDebugContactPoint(DebugHitContactRegion region)
-        {
-            if (ragdollSystem != null
-                && ragdollSystem.TryGetDebugContactPoint(region, out var ragdollPoint, out var ragdollBoneName))
-            {
-                RecordResolvedDebugContact(
-                    ragdollPoint,
-                    $"RagdollPhysics:{ragdollBoneName}",
-                    ragdollBoneName);
-                return ragdollPoint;
-            }
-
-            var modelAnimator = animator;
-            if (modelAnimator != null && modelAnimator.isHuman && modelAnimator.avatar != null)
-            {
-                Transform bone = region switch
-                {
-                    DebugHitContactRegion.Hips => modelAnimator.GetBoneTransform(HumanBodyBones.Hips),
-                    DebugHitContactRegion.Head => modelAnimator.GetBoneTransform(HumanBodyBones.Head),
-                    DebugHitContactRegion.Chest => modelAnimator.GetBoneTransform(HumanBodyBones.UpperChest) ?? modelAnimator.GetBoneTransform(HumanBodyBones.Chest) ?? modelAnimator.GetBoneTransform(HumanBodyBones.Spine),
-                    DebugHitContactRegion.LeftArm => modelAnimator.GetBoneTransform(HumanBodyBones.LeftUpperArm) ?? modelAnimator.GetBoneTransform(HumanBodyBones.LeftLowerArm),
-                    DebugHitContactRegion.RightArm => modelAnimator.GetBoneTransform(HumanBodyBones.RightUpperArm) ?? modelAnimator.GetBoneTransform(HumanBodyBones.RightLowerArm),
-                    DebugHitContactRegion.LeftElbow => modelAnimator.GetBoneTransform(HumanBodyBones.LeftLowerArm) ?? modelAnimator.GetBoneTransform(HumanBodyBones.LeftUpperArm),
-                    DebugHitContactRegion.RightElbow => modelAnimator.GetBoneTransform(HumanBodyBones.RightLowerArm) ?? modelAnimator.GetBoneTransform(HumanBodyBones.RightUpperArm),
-                    DebugHitContactRegion.LeftWrist => modelAnimator.GetBoneTransform(HumanBodyBones.LeftHand) ?? modelAnimator.GetBoneTransform(HumanBodyBones.LeftLowerArm),
-                    DebugHitContactRegion.RightWrist => modelAnimator.GetBoneTransform(HumanBodyBones.RightHand) ?? modelAnimator.GetBoneTransform(HumanBodyBones.RightLowerArm),
-                    DebugHitContactRegion.LeftLeg => modelAnimator.GetBoneTransform(HumanBodyBones.LeftUpperLeg) ?? modelAnimator.GetBoneTransform(HumanBodyBones.LeftLowerLeg),
-                    DebugHitContactRegion.RightLeg => modelAnimator.GetBoneTransform(HumanBodyBones.RightUpperLeg) ?? modelAnimator.GetBoneTransform(HumanBodyBones.RightLowerLeg),
-                    DebugHitContactRegion.LeftKnee => modelAnimator.GetBoneTransform(HumanBodyBones.LeftLowerLeg) ?? modelAnimator.GetBoneTransform(HumanBodyBones.LeftUpperLeg),
-                    DebugHitContactRegion.RightKnee => modelAnimator.GetBoneTransform(HumanBodyBones.RightLowerLeg) ?? modelAnimator.GetBoneTransform(HumanBodyBones.RightUpperLeg),
-                    DebugHitContactRegion.LeftAnkle => modelAnimator.GetBoneTransform(HumanBodyBones.LeftFoot) ?? modelAnimator.GetBoneTransform(HumanBodyBones.LeftLowerLeg),
-                    DebugHitContactRegion.RightAnkle => modelAnimator.GetBoneTransform(HumanBodyBones.RightFoot) ?? modelAnimator.GetBoneTransform(HumanBodyBones.RightLowerLeg),
-                    _ => null
-                };
-
-                if (bone != null)
-                {
-                    RecordResolvedDebugContact(
-                        bone.position,
-                        $"Humanoid:{bone.name}",
-                        bone.name);
-                    return bone.position;
-                }
-            }
-
-            var rootPos = transform.position;
-            var fallbackPoint = region switch
-            {
-                DebugHitContactRegion.Hips => rootPos + Vector3.up * 0.95f,
-                DebugHitContactRegion.Head => rootPos + Vector3.up * 1.7f,
-                DebugHitContactRegion.Chest => rootPos + Vector3.up * 1.2f,
-                DebugHitContactRegion.LeftArm => rootPos + Vector3.up * 1.2f - transform.right * 0.35f,
-                DebugHitContactRegion.RightArm => rootPos + Vector3.up * 1.2f + transform.right * 0.35f,
-                DebugHitContactRegion.LeftElbow => rootPos + Vector3.up * 1.12f - transform.right * 0.42f,
-                DebugHitContactRegion.RightElbow => rootPos + Vector3.up * 1.12f + transform.right * 0.42f,
-                DebugHitContactRegion.LeftWrist => rootPos + Vector3.up * 0.98f - transform.right * 0.48f,
-                DebugHitContactRegion.RightWrist => rootPos + Vector3.up * 0.98f + transform.right * 0.48f,
-                DebugHitContactRegion.LeftLeg => rootPos + Vector3.up * 0.65f - transform.right * 0.18f,
-                DebugHitContactRegion.RightLeg => rootPos + Vector3.up * 0.65f + transform.right * 0.18f,
-                DebugHitContactRegion.LeftKnee => rootPos + Vector3.up * 0.48f - transform.right * 0.16f,
-                DebugHitContactRegion.RightKnee => rootPos + Vector3.up * 0.48f + transform.right * 0.16f,
-                DebugHitContactRegion.LeftAnkle => rootPos + Vector3.up * 0.2f - transform.right * 0.14f,
-                DebugHitContactRegion.RightAnkle => rootPos + Vector3.up * 0.2f + transform.right * 0.14f,
-                _ => rootPos + Vector3.up
-            };
-            RecordResolvedDebugContact(fallbackPoint, "FallbackOffset", string.Empty);
-            return fallbackPoint;
-        }
-
-        void RecordResolvedDebugContact(Vector3 point, string source, string boneName)
-        {
-            _lastResolvedDebugContactPoint = point;
-            _lastResolvedDebugContactSource = string.IsNullOrWhiteSpace(source) ? "Unknown" : source;
-            _lastResolvedDebugContactBoneName = boneName ?? string.Empty;
         }
 
         #endregion

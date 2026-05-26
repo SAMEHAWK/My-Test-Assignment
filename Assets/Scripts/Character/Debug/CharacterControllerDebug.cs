@@ -242,10 +242,10 @@ namespace ActiveRagdoll.Character
                 {
                     // 需求语义：箭头表示受力方向；轻击逻辑内部按“来向取反”驱动反应，因此此处传反向以得到“朝力方向”效果
                     // Required semantics: arrow visualizes force direction; light-hit response internally negates incoming, so pass inverse here to move toward force
-                    root.DebugHitLight(-debugDirectionWorld, root.GetDebugContactPoint(debugContactRegion));
+                    root.DebugHitDriver.DebugHitLight(-debugDirectionWorld, root.DebugHitDriver.GetDebugContactPoint(debugContactRegion));
                 }
                 else
-                    root.DebugHitLight(debugDirection, debugContactRegion);
+                    root.DebugHitDriver.DebugHitLight(debugDirection, debugContactRegion);
             }
             y += line;
 
@@ -262,9 +262,9 @@ namespace ActiveRagdoll.Character
             if (GUI.Button(new Rect(x, y, width, line), "Heavy Hit"))
             {
                 if (useContinuousDirection)
-                    root.DebugHitHeavy(debugDirectionWorld, debugHeavyHitImpulse, root.GetDebugContactPoint(debugContactRegion));
+                    root.DebugHitDriver.DebugHitHeavy(debugDirectionWorld, debugHeavyHitImpulse, root.DebugHitDriver.GetDebugContactPoint(debugContactRegion));
                 else
-                    root.DebugHitHeavy(debugDirection, debugHeavyHitImpulse, debugContactRegion);
+                    root.DebugHitDriver.DebugHitHeavy(debugDirection, debugHeavyHitImpulse, debugContactRegion);
             }
             y += line;
 
@@ -295,9 +295,9 @@ namespace ActiveRagdoll.Character
             if (GUI.Button(new Rect(x, y, width, line), "Force KO Light"))
             {
                 if (useContinuousDirection)
-                    root.DebugForceKnockdownLight(debugDirectionWorld, debugForceKoLightImpulse, debugContactRegion);
+                    root.DebugHitDriver.DebugForceKnockdownLight(debugDirectionWorld, debugForceKoLightImpulse, debugContactRegion);
                 else
-                    root.DebugForceKnockdownLight(-HitDirectionUtility.ToWorldVector(debugDirection, root.transform), debugForceKoLightImpulse, debugContactRegion);
+                    root.DebugHitDriver.DebugForceKnockdownLight(-HitDirectionUtility.ToWorldVector(debugDirection, root.transform), debugForceKoLightImpulse, debugContactRegion);
             }
             y += line;
 
@@ -306,9 +306,9 @@ namespace ActiveRagdoll.Character
             if (GUI.Button(new Rect(x, y, width, line), "Force KO Heavy"))
             {
                 if (useContinuousDirection)
-                    root.DebugForceKnockdownHeavy(debugDirectionWorld, debugForceKoHeavyImpulse, debugContactRegion);
+                    root.DebugHitDriver.DebugForceKnockdownHeavy(debugDirectionWorld, debugForceKoHeavyImpulse, debugContactRegion);
                 else
-                    root.DebugForceKnockdownHeavy(-HitDirectionUtility.ToWorldVector(debugDirection, root.transform), debugForceKoHeavyImpulse, debugContactRegion);
+                    root.DebugHitDriver.DebugForceKnockdownHeavy(-HitDirectionUtility.ToWorldVector(debugDirection, root.transform), debugForceKoHeavyImpulse, debugContactRegion);
             }
 
             SyncHelperFromPanel();
