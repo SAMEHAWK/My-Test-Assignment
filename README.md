@@ -8,7 +8,16 @@ Unity developer test assignment: implement an **Active Ragdoll** system for a hu
 
 ## Foreword
 
-This project is built collaboratively with AI, using Cursor as the IDE. AI models include the model provided by Cursor Auto mode and Deepseek V4 pro. The game uses a top-down 3D perspective.
+This project implements the full active ragdoll pipeline: WASD movement → light hit flinch → heavy hit partial physics → knockdown full ragdoll → recovery. The core architecture uses a hierarchical state machine + dual-skeleton physics and is currently functional.
+
+**Known areas for improvement:**
+- **Heavy hit feel**: The blend-back smoothness of partial ragdoll, force propagation attenuation across hit chains, and the transition between stagger animation and physics still have room for tuning. A satisfying parameter set hasn't been found yet.
+- **Animator module**: The current Animator Controller's layer structure was stacked incrementally as features were added, with layer weight management scattered across the code. The plan is to refactor it into a standalone animation module that consolidates layer switching, CrossFade scheduling, and overlay lifecycle management.
+- **Hit feedback**: `CharacterHurtbox` already reserves per-limb damage/impulse multipliers, but they haven't been utilized for differentiated body-part response yet; there's room to improve hit feel with layered feedback.
+
+Most of these directions are currently at the "rough idea" stage with no concrete solution yet.
+
+All code and documentation were completed with AI assistance (Cursor + Deepseek V4 pro), following a "plan → confirm → implement" collaboration workflow.
 
 ## Requirements
 
