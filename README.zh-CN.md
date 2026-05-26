@@ -7,11 +7,8 @@ Unity 开发者测试任务：为人形角色实现 **主动式布娃娃（Activ
 **参考游戏：** *Exanima*、*Hellish Quart*、*No Rest for the Wicked*（俯视角镜头风格）。
 
 ## 前言
-本项目将由AI协作制作，IDE为Cursor，AI模型为Cursor Auto模式提供的AI模型以及Deepseek V4 pro，游戏为俯视角3D
 
-## 演示
-
-<!-- 补充 GIF/截图：轻击、重击、击倒、起身、滚石 -->
+本项目由 AI 协作制作，IDE 为 Cursor，AI 模型为 Cursor Auto 模式提供的 AI 模型以及 Deepseek V4 pro。游戏为俯视角 3D。
 
 ## 环境要求
 
@@ -24,8 +21,8 @@ Unity 开发者测试任务：为人形角色实现 **主动式布娃娃（Activ
 
 1. 克隆本仓库。
 2. Unity Hub 用 **6000.3.13f1** 打开项目。
-3. 打开 `Assets/Scenes/SampleScene.unity`（或你搭建的主测试场景）。
-4. **播放** — 第一组测受击，第二组测击倒，滚石路径测即时击倒。
+3. 打开 `Assets/Scenes/SampleScene.unity`。
+4. **播放** — 场景含两组假人与滚石：第一组测受击，第二组测击倒，滚石路径测即时击倒。
 
 首次打开导入资源可能需要数分钟。
 
@@ -33,9 +30,12 @@ Unity 开发者测试任务：为人形角色实现 **主动式布娃娃（Activ
 
 | 操作 | 输入 |
 |------|------|
-| 移动 | `W` `A` `S` `D`（或屏幕虚拟摇杆） |
+| 移动 | `W` `A` `S` `D` |
+| 装备 / 收刀 | `E` |
+| 轻攻击 | 鼠标左键 |
+| 重攻击 | 鼠标右键 |
 
-俯视角；玩家无需攻击按键 — 伤害来自假人与滚石。
+俯视角；玩家可主动攻击假人，也会受到假人与滚石的伤害。
 
 输入配置：`Assets/InputSystem_Actions.inputactions`（若做移动端可扩展虚拟摇杆）。
 
@@ -43,7 +43,7 @@ Unity 开发者测试任务：为人形角色实现 **主动式布娃娃（Activ
 
 ### 玩家角色
 
-- 移动：WASD / 虚拟摇杆
+- 移动：WASD
 - 动画：**待机（Idle）**、**奔跑（Run）**、**起身（仰卧/俯卧）**
 - **平衡值 6 点**；**1.5–2 秒**未受击开始恢复
   - 轻击 **−1**
@@ -54,19 +54,19 @@ Unity 开发者测试任务：为人形角色实现 **主动式布娃娃（Activ
 
 | 区域 | 用途 |
 |------|------|
-| **第一组** | 受击测试 — 2 个原地假人，**每 3 秒**攻击一次 |
-| **第二组** | 击倒测试 — 2 个假人**无间隔**连续攻击；与第一组距离足够远 |
+| **第一组** | 受击测试 — 2 个原地假人，定时攻击 |
+| **第二组** | 击倒测试 — 2 个假人连续攻击；与第一组距离足够远 |
 | **滚石** | 球体沿**循环路径**往返；碰到玩家 → **无视平衡值立即击倒**；力方向 = 碰撞瞬间滚石运动方向 |
 
 **第一组**
 
-- 假人 1 — 每 3 秒轻击  
-- 假人 2 — 每 3 秒重击  
+- 假人 1 — 轻击
+- 假人 2 — 重击
 
 **第二组**
 
-- 假人 3 — 无间隔连续轻击  
-- 假人 4 — 无间隔连续重击  
+- 假人 3 — 连续轻击
+- 假人 4 — 连续重击
 
 ### 机制摘要
 
@@ -83,49 +83,66 @@ Unity 开发者测试任务：为人形角色实现 **主动式布娃娃（Activ
 
 ### 核心系统
 
-- [ ] 主动式布娃娃（动画 ↔ 物理切换）
-- [ ] 轻击反应（四向上半身，&lt; 0.3 s 恢复）
-- [ ] 重击（局部布娃娃 + 踉跄 + 融合回动画）
-- [ ] 平衡值（6 点、恢复、归零击倒、击倒后重置）
-- [ ] 全身击倒 + 接触点施力
-- [ ] 起身（姿态检测 + 匹配混合 + 待机）
+- [x] 主动式布娃娃（动画 ↔ 物理切换，双骨架架构）
+- [x] 轻击反应（四向上半身，&lt; 0.3 s 恢复）
+- [x] 重击（局部布娃娃 + 踉跄 + 融合回动画）
+- [x] 平衡值（6 点、恢复、归零击倒、击倒后重置）
+- [x] 全身击倒 + 接触点施力
+- [x] 起身（姿态检测 + 匹配混合 + 待机）
 
 ### 玩家与场景
 
-- [ ] 玩家移动（WASD / 可选摇杆）
-- [ ] Idle / Run 动画
-- [ ] 俯视角相机
-- [ ] 第一组假人（定时轻/重击）
-- [ ] 第二组假人（连续轻/重击），与第一组隔开
-- [ ] 滚石循环路径 + 碰撞即时击倒
-
-### 收尾
-
-- [ ] README 演示素材
-- [ ] 可独立构建（建议）
-- [ ] GitHub 提交就绪
+- [x] 玩家移动（WASD）
+- [x] Idle / Run 动画
+- [x] 俯视角相机
+- [x] 第一组假人（定时轻/重击）
+- [x] 第二组假人（连续轻/重击），与第一组隔开
+- [x] 滚石循环路径 + 碰撞即时击倒
+- [x] 玩家主动攻击（轻攻击 / 重攻击，含根运动与命中判定）
+- [x] 武器装备 / 收刀系统（含动态动画层切换）
 
 ## 项目结构
 
 ```
 Assets/
-  Scenes/              # 主测试场景
-  Models/              # 提供的角色 / animation_pack.fbx
-  Prefabs/             # 玩家、假人、滚石
-  Scripts/             # 布娃娃、平衡、受击、假人逻辑
-  Settings/            # URP
-docs/
-  Unity_测试任务.pdf    # 官方题面（中英）
+  Scenes/                  # 主测试场景
+  Models/                  # 角色模型 / animation_pack.fbx / 提取的动画片段
+  Prefabs/                 # Player 预制体
+  Scripts/                 # 核心角色系统脚本
+    Character/             # 角色控制器、状态机、子模块
+      Config/              # ScriptableObject 配置定义
+      Debug/               # 调试工具（受击注入、平衡值显示）
+      Editor/              # 编辑器扩展
+      Modules/             # 动画播放控制器（装备、攻击）
+    Ragdoll/               # 布娃娃系统（链定义、骨骼映射、配置）
+    Combat/                # 战斗系统（受击盒、武器命中扫描）
+    Gameplay/              # 游戏玩法（滚石击倒）
+    Camera/                # 相机跟随
+    UI/                    # UI 工具
+  Animator/                # Animator Controller
+  Configs/                 # ScriptableObject 配置资产
+  Settings/                # URP 渲染管线配置
 ```
+
+## 架构概要
+
+角色控制器采用 **层次状态机（HSM）+ 模块组合** 架构：
+
+- **3 父态 / 9 子态**：`Grounded`（Locomotion / WeaponEquipPlayback / AttackPlayback）、`HitReaction`（LightFlinch / HeavyStagger）、`Incapacitated`（Knockdown / ForcedKnockdown / Recovering）
+- **双骨架布娃娃**：VisualModel（动画骨架）+ RagdollRig（隐藏物理骨架），物理姿态世界空间回写
+- **5 个子模块**：CharacterMotor（移动）、CharacterCombat（平衡值）、CharacterAnimationPresenter（动画）、CharacterRagdollSystem（布娃娃）、CharacterRecoveryFlow（起身）
+- **配置驱动**：移动/平衡/动画/布娃娃参数均通过 ScriptableObject 配置
+
+详见 `docs/` 目录下的架构文档。
 
 ## 第三方资源
 
 | 资源 | 路径 | 说明 |
 |------|------|------|
 | 角色 / 动画 | `Assets/Models/` | 出题方提供 |
-| Unity 包 | `Packages/manifest.json` | URP、Input System 等 |
+| 大剑动画集 | `Assets/MassiveGreatSword_AnimSet/` | 第三方动画资源 |
+| Unity 包 | `Packages/manifest.json` | URP、Input System、Cinemachine 等 |
 
 ## 作者
 
-<!-- 替换为你的信息 -->
-**王燿增** — [email@example.com](mailto:916821412@qq.com)
+**王燿增** — [916821412@qq.com](mailto:916821412@qq.com)

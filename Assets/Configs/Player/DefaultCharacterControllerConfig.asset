@@ -29,7 +29,7 @@ MonoBehaviour:
   lightFlinchDuration: 0.3
   heavyBlendBackDuration: 1
   heavyStaggerUseRootMotion: 1
-  heavyRootMotionPlanarScale: 1
+  heavyRootMotionPlanarScale: 1.5
   heavyRootMotionMaxDeltaPerFrame: 0.45
   attackUseRootMotion: 1
   attackRootMotionPlanarScale: 1

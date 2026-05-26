@@ -110,3 +110,27 @@ MonoBehaviour:
     minPropagationWeight: 0.2
     impulseMultiplier: 1
     writebackWeight: 1
+  - chainName: LeftForeArm
+    boneNameKeywords:
+    - LeftForeArm
+    propagationMode: 2
+    includeChildren: 1
+    maxParentDepth: 4
+    maxChildDepth: 1
+    parentFalloff: 0.6
+    childFalloff: 0.75
+    minPropagationWeight: 0.2
+    impulseMultiplier: 1
+    writebackWeight: 1
+  - chainName: RightForeArm
+    boneNameKeywords:
+    - RightForeArm
+    propagationMode: 2
+    includeChildren: 1
+    maxParentDepth: 4
+    maxChildDepth: 1
+    parentFalloff: 0.6
+    childFalloff: 0.75
+    minPropagationWeight: 0.2
+    impulseMultiplier: 1
+    writebackWeight: 1

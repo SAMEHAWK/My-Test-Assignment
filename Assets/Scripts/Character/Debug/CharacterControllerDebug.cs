@@ -47,6 +47,13 @@ namespace ActiveRagdoll.Character
         [SerializeField] float pointSphereRadius = 0.06f;
         [SerializeField] float affectedSphereRadius = 0.04f;
 
+        bool _hasActiveHitGizmo;
+        bool _hasObservedHitGizmoSource;
+        bool _activeHitGizmoUsesRagdoll;
+        float _activeHitGizmoSourceTime = -1f;
+        float _hitGizmoRemainingTime;
+        int _lastHitGizmoTickFrame = -1;
+
         void Reset()
         {
             root = GetComponent<CharacterControllerRoot>();
@@ -57,7 +64,11 @@ namespace ActiveRagdoll.Character
 
         void OnValidate() => AutoBindDirectionHelper();
 
-        void Update() => TickContactRegionHotkeys();
+        void Update()
+        {
+            TickContactRegionHotkeys();
+            TickHitGizmoLifetimeOncePerFrame();
+        }
 
         void OnDrawGizmos()
         {
@@ -470,6 +481,74 @@ namespace ActiveRagdoll.Character
             };
         }
 
+        void TickHitGizmoLifetimeOncePerFrame()
+        {
+            if (!Application.isPlaying)
+                return;
+            if (_lastHitGizmoTickFrame == Time.frameCount)
+                return;
+
+            _lastHitGizmoTickFrame = Time.frameCount;
+            TickHitGizmoLifetime(Time.deltaTime);
+        }
+
+        void TickHitGizmoLifetime(float deltaTime)
+        {
+            if (root == null)
+                root = GetComponent<CharacterControllerRoot>();
+            if (root == null)
+            {
+                _hasActiveHitGizmo = false;
+                return;
+            }
+
+            if (!TryResolveHitGizmoSource(root, out var useRagdoll, out var sourceTime))
+            {
+                _hasActiveHitGizmo = false;
+                return;
+            }
+
+            var isNewSource = !_hasObservedHitGizmoSource
+                || _activeHitGizmoUsesRagdoll != useRagdoll
+                || !Mathf.Approximately(_activeHitGizmoSourceTime, sourceTime);
+            if (isNewSource)
+            {
+                _hasObservedHitGizmoSource = true;
+                _hasActiveHitGizmo = true;
+                _activeHitGizmoUsesRagdoll = useRagdoll;
+                _activeHitGizmoSourceTime = sourceTime;
+                _hitGizmoRemainingTime = gizmoDuration;
+            }
+
+            if (gizmoDuration <= 0f)
+                return;
+
+            // Gizmo 生命周期按游戏时间递减；逐帧保护避免 OnDrawGizmos 多次重绘导致提前消失
+            // Gizmo lifetime is decremented with game time; per-frame guard prevents repeated Gizmo repaints from expiring it early
+            _hitGizmoRemainingTime -= Mathf.Max(0f, deltaTime);
+            if (_hitGizmoRemainingTime <= 0f)
+                _hasActiveHitGizmo = false;
+        }
+
+        static bool TryResolveHitGizmoSource(CharacterControllerRoot targetRoot, out bool useRagdoll, out float sourceTime)
+        {
+            useRagdoll = false;
+            sourceTime = -1f;
+            if (targetRoot == null)
+                return false;
+
+            var hasRagdollDebug = targetRoot.HasRagdollDebugHitInfo;
+            var hasRootFallback = targetRoot.HasLastDebugHit;
+            if (!hasRagdollDebug && !hasRootFallback)
+                return false;
+
+            var ragdollTime = hasRagdollDebug ? targetRoot.RagdollDebugLastHitTime : -1f;
+            var rootTime = hasRootFallback ? targetRoot.LastDebugHitTime : -1f;
+            useRagdoll = hasRagdollDebug && (!hasRootFallback || ragdollTime >= rootTime);
+            sourceTime = useRagdoll ? ragdollTime : rootTime;
+            return sourceTime >= 0f;
+        }
+
         void DrawHitGizmos()
         {
             if (!showHitGizmos)
@@ -480,18 +559,13 @@ namespace ActiveRagdoll.Character
             if (root == null)
                 return;
 
-            var hasRagdollDebug = root.HasRagdollDebugHitInfo;
-            var hasRootFallback = root.HasLastDebugHit;
-            if (!hasRagdollDebug && !hasRootFallback)
+            TickHitGizmoLifetimeOncePerFrame();
+
+            if (!TryResolveHitGizmoSource(root, out var hasRagdollDebug, out _))
                 return;
 
-            var debugTime = hasRagdollDebug ? root.RagdollDebugLastHitTime : root.LastDebugHitTime;
-            if (Application.isPlaying && gizmoDuration > 0f && debugTime >= 0f)
-            {
-                var age = Time.time - debugTime;
-                if (age > gizmoDuration)
-                    return;
-            }
+            if (Application.isPlaying && gizmoDuration > 0f && !_hasActiveHitGizmo)
+                return;
 
             var fallbackHit = root.LastDebugHit;
             var hitPoint = hasRagdollDebug ? root.RagdollDebugImpulsePoint : fallbackHit.ContactPoint;
@@ -509,7 +583,7 @@ namespace ActiveRagdoll.Character
             var primaryBone = hasRagdollDebug ? root.RagdollDebugPrimaryAffectedBone : null;
             if (primaryBone != null)
             {
-                Gizmos.color = Color.cyan;
+                Gizmos.color = Color.magenta;
                 Gizmos.DrawSphere(primaryBone.position, pointSphereRadius * 0.9f);
                 Gizmos.DrawLine(hitPoint, primaryBone.position);
             }
@@ -526,6 +600,8 @@ namespace ActiveRagdoll.Character
             {
                 var bone = affectedBones[i];
                 if (bone == null)
+                    continue;
+                if (primaryBone != null && bone == primaryBone)
                     continue;
                 Gizmos.DrawSphere(bone.position, affectedSphereRadius);
                 Gizmos.DrawLine(hitPoint, bone.position);

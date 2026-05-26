@@ -4,34 +4,25 @@
 
 Unity developer test assignment: implement an **Active Ragdoll** system for a humanoid with **hit reactions** and a **Balance** mechanic. Smooth transitions between animation and physics-driven states.
 
-**Reference games:** *Exanima*, *Hellish Quart*, *No Rest for the Wicked* (camera style).
+**Reference games:** *Exanima*, *Hellish Quart*, *No Rest for the Wicked* (top-down camera style).
 
-**Brief:** [`docs/Unity_测试任务.pdf`](docs/Unity_测试任务.pdf)
+## Foreword
 
-> **Status:** In progress — update checkboxes below as features land.
-
-## Demo
-
-<!-- Add GIF/screenshot: light hit, heavy hit, knockdown, recovery, boulder -->
+This project is built collaboratively with AI, using Cursor as the IDE. AI models include the model provided by Cursor Auto mode and Deepseek V4 pro. The game uses a top-down 3D perspective.
 
 ## Requirements
 
 | Item | Notes |
 |------|--------|
-| Unity Editor | **6000.3.13f1 (LTS)** — mandatory |
-| Environment | Primitives OK for level geometry |
-| Character | Model & animations provided (`Assets/Models/`) |
-| Submission | GitHub repo (preferred) or `.zip` |
-| Tested platform | Windows *(update if needed)* |
-
-Do **not** commit `Library/`, `Temp/`, `Logs/` (see `.gitignore`).
+| Unity | **6000.3.13f1 (LTS)** — mandatory |
+| Tested Platform | Windows |
 
 ## Getting Started
 
 1. Clone this repository.
 2. Open in Unity Hub with **6000.3.13f1**.
-3. Open `Assets/Scenes/SampleScene.unity` (or the main test scene once created).
-4. Press **Play** — use **Group 1** area for hit reactions, **Group 2** for knockdown, **boulder path** for instant knockdown.
+3. Open `Assets/Scenes/SampleScene.unity`.
+4. Press **Play** — the scene contains two groups of dummies and a boulder: Group 1 for hit reactions, Group 2 for knockdown, and the boulder path for instant knockdown.
 
 First open may require several minutes of asset import.
 
@@ -39,9 +30,12 @@ First open may require several minutes of asset import.
 
 | Action | Input |
 |--------|--------|
-| Move | `W` `A` `S` `D` (or on-screen virtual joystick) |
+| Move | `W` `A` `S` `D` |
+| Equip / Unequip | `E` |
+| Light Attack | Left Mouse Button |
+| Heavy Attack | Right Mouse Button |
 
-Top-down camera; no combat input required on the player — damage comes from dummies and the boulder.
+Top-down camera; the player can actively attack dummies and will also take damage from dummies and the boulder.
 
 Input asset: `Assets/InputSystem_Actions.inputactions` (extend for virtual joystick if targeting mobile).
 
@@ -49,103 +43,109 @@ Input asset: `Assets/InputSystem_Actions.inputactions` (extend for virtual joyst
 
 ### Player
 
-- Movement: WASD / virtual joystick
+- Movement: WASD
 - Animations: **Idle**, **Run**, **Get Up** (from back / from front)
 - **Balance:** 6 points; regen after **1.5–2 s** without being hit
   - Light hit → **−1** balance
   - Heavy hit → **−2** balance
   - At **0** → **Knockdown**, then balance resets to full
 
-### Scene test layout
+### Scene Test Layout
 
 | Zone | Purpose |
 |------|---------|
-| **Group 1** | Hit reaction test — 2 stationary dummies, attacks on a **3 s** timer |
-| **Group 2** | Knockdown test — 2 dummies, **continuous** light/heavy attacks; far from Group 1 |
-| **Boulder** | Sphere on a **looping path**; collision → **instant knockdown** (ignores balance); force along boulder velocity |
+| **Group 1** | Hit reaction test — 2 stationary dummies, timed attacks |
+| **Group 2** | Knockdown test — 2 dummies, continuous attacks; far from Group 1 |
+| **Boulder** | Sphere on a **looping path**; collision → **instant knockdown** (ignores balance); force direction = boulder velocity at impact |
 
 **Group 1**
 
-- Dummy 1 — light attack every 3 s  
-- Dummy 2 — heavy attack every 3 s  
+- Dummy 1 — light attacks
+- Dummy 2 — heavy attacks
 
 **Group 2**
 
-- Dummy 3 — light attacks, no delay  
-- Dummy 4 — heavy attacks, no delay  
+- Dummy 3 — continuous light attacks
+- Dummy 4 — continuous heavy attacks
 
-### Combat mechanics (summary)
+### Combat Mechanics (Summary)
 
 | Type | Behavior |
 |------|----------|
 | **Light hit** | Upper-body directional flinch; blend with current anim; feet planted; no ragdoll; recover idle in **&lt; 0.3 s** |
 | **Heavy hit** | Partial ragdoll on struck limb chain (e.g. shoulder → arm + upper torso); impulse in hit direction; stagger on rest of body; physics blends back in **~0.5–1 s** |
 | **Knockdown** | Full ragdoll; inherits final hit force/direction; light KO = small crumple; heavy KO = launch; force at **contact point**; natural settle (no canned fall anim) |
-| **Recovery** | After ragdoll settles: detect face-up / face-down (spine up · world up); pose-matched blend into **Get Up From Back** or **Get Up From Front**; return to idle |
+| **Recovery** | After ragdoll settles: detect face-up / face-down (spine up · world up); pose-matched blend into corresponding Get Up animation; return to idle |
 
 Tuning of balance damage, regen delay, and impulse values is allowed for better feel.
 
 ## Features Checklist
 
-### Core systems
+### Core Systems
 
-- [ ] Active ragdoll (animation ↔ physics handoff)
-- [ ] Light hit reaction (4-way upper body, &lt; 0.3 s recovery)
-- [ ] Heavy hit (partial ragdoll + stagger + blend back)
-- [ ] Balance (6 pts, regen, knockdown at 0, reset after KO)
-- [ ] Full knockdown + contact-point impulses
-- [ ] Recovery (pose detect + matched get-up + idle)
+- [x] Active ragdoll (animation ↔ physics handoff, dual-skeleton architecture)
+- [x] Light hit reaction (4-way upper body, &lt; 0.3 s recovery)
+- [x] Heavy hit (partial ragdoll + stagger + blend back)
+- [x] Balance (6 pts, regen, knockdown at 0, reset after KO)
+- [x] Full knockdown + contact-point impulses
+- [x] Recovery (pose detect + matched get-up + idle)
 
-### Player & scene
+### Player & Scene
 
-- [ ] Player movement (WASD / optional joystick)
-- [ ] Idle / Run animations
-- [ ] Top-down camera (*No Rest for the Wicked* style)
-- [ ] Group 1 dummies (timed light / heavy)
-- [ ] Group 2 dummies (continuous light / heavy), spaced from Group 1
-- [ ] Boulder on loop path, instant KO on player collision
+- [x] Player movement (WASD)
+- [x] Idle / Run animations
+- [x] Top-down camera
+- [x] Group 1 dummies (timed light / heavy)
+- [x] Group 2 dummies (continuous light / heavy), spaced from Group 1
+- [x] Boulder on loop path, instant KO on player collision
 
-### Polish & delivery
+### Extended Features (Beyond Original Scope)
 
-- [ ] README demo media
-- [ ] Standalone build (optional but recommended)
-- [ ] GitHub submission ready
+- [x] Player active attacks (light / heavy, with root motion and hit detection)
+- [x] Weapon equip / unequip system (with dynamic animation layer switching)
 
 ## Project Structure
 
 ```
 Assets/
-  Scenes/              # Main test scene
-  Models/              # Provided character / animation_pack.fbx
-  Prefabs/             # Player, dummies, boulder
-  Scripts/             # Ragdoll, balance, hits, AI timers (add here)
-  Settings/            # URP
-docs/
-  Unity_测试任务.pdf    # Official brief (EN + ZH)
+  Scenes/                  # Main test scene
+  Models/                  # Character model / animation_pack.fbx / extracted clips
+  Prefabs/                 # Player prefab
+  Scripts/                 # Core character system scripts
+    Character/             # Character controller, state machine, sub-modules
+      Config/              # ScriptableObject config definitions
+      Debug/               # Debug tools (hit injection, balance display)
+      Editor/              # Editor extensions
+      Modules/             # Animation playback controllers (equip, attack)
+    Ragdoll/               # Ragdoll system (chain definitions, bone mapping, config)
+    Combat/                # Combat system (hurtboxes, weapon hit scanning)
+    Gameplay/              # Gameplay mechanics (rolling boulder)
+    Camera/                # Camera follow
+    UI/                    # UI utilities
+  Animator/                # Animator Controller
+  Configs/                 # ScriptableObject config assets
+  Settings/                # URP render pipeline configuration
 ```
 
-## Design Notes
+## Architecture Overview
 
-*(Document your approach as you implement.)*
+The character controller uses a **Hierarchical State Machine (HSM) + Module Composition** architecture:
 
-- Suggested modules: `BalanceSystem`, `HitReactionController`, `RagdollController`, `RecoveryController`, dummy attack drivers, boulder mover.
-- Hit direction: front / back / left / right for light flinch blending.
-- Heavy hit: per-limb or chain ragdoll activation + `ConfigurableJoint` / `Rigidbody` impulses.
-- Knockdown: distinguish last hit was light vs heavy for collapse vs launch.
-- Recovery: dot(spineUp, worldUp) for supine vs prone get-up clip.
+- **3 superstates / 9 substates**: `Grounded` (Locomotion / WeaponEquipPlayback / AttackPlayback), `HitReaction` (LightFlinch / HeavyStagger), `Incapacitated` (Knockdown / ForcedKnockdown / Recovering)
+- **Dual-skeleton ragdoll**: VisualModel (animation skeleton) + RagdollRig (hidden physics skeleton), with world-space pose write-back
+- **5 sub-modules**: CharacterMotor (movement), CharacterCombat (balance), CharacterAnimationPresenter (animation), CharacterRagdollSystem (ragdoll), CharacterRecoveryFlow (recovery)
+- **Config-driven**: All movement, balance, animation, and ragdoll parameters are configured via ScriptableObjects
 
-## Known Limitations
-
-- *(List intentional scope cuts or tuning still in progress.)*
+See `docs/` for detailed architecture documentation.
 
 ## Third-Party Assets
 
 | Asset | Location | Notes |
 |-------|----------|--------|
-| Character / animations | `Assets/Models/` | Provided by assigner — document if external license applies |
-| Unity packages | `Packages/manifest.json` | URP, Input System, etc. |
+| Character / animations | `Assets/Models/` | Provided by the assigner |
+| Greatsword animation set | `Assets/MassiveGreatSword_AnimSet/` | Third-party animation assets |
+| Unity packages | `Packages/manifest.json` | URP, Input System, Cinemachine, etc. |
 
 ## Author
 
-<!-- Replace with your details -->
-**Your Name** — [email@example.com](mailto:email@example.com)
+**王燿增** — [916821412@qq.com](mailto:916821412@qq.com)
